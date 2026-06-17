@@ -139,10 +139,10 @@ export class EstatesService {
     });
 
     const total = units.length;
-    const occupied = units.filter((u) => u.status === 'occupied').length;
-    const vacant = units.filter((u) => u.status === 'vacant').length;
-    const underMaintenance = units.filter((u) => u.status === 'under_maintenance').length;
-    const reserved = units.filter((u) => u.status === 'reserved').length;
+    const occupied = units.filter((u: { status: string }) => u.status === 'occupied').length;
+    const vacant = units.filter((u: { status: string }) => u.status === 'vacant').length;
+    const underMaintenance = units.filter((u: { status: string }) => u.status === 'under_maintenance').length;
+    const reserved = units.filter((u: { status: string }) => u.status === 'reserved').length;
 
     return {
       total,
