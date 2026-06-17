@@ -1,0 +1,1398 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// AUTH & USERS
+// ========================
+
+enum UserRole {
+  super_admin
+  estate_manager
+  landlord
+  tenant
+  security_staff
+  maintenance_staff
+  viewer
+}
+
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  phone         String?
+  avatarUrl     String?   @map("avatar_url")
+  role          UserRole  @default(tenant)
+  emailVerified Boolean   @default(false) @map("email_verified")
+  mfaEnabled    Boolean   @default(false) @map("mfa_enabled")
+  mfaSecret     String?   @map("mfa_secret")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLoginAt   DateTime? @map("last_login_at")
+  estateId      String?   @map("estate_id") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate        Estate?        @relation(fields: [estateId], references: [id])
+  refreshTokens RefreshToken[]
+  loginAttempts LoginAttempt[]
+  notifications Notification[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+  landlord      Landlord?
+  tenant        Tenant?
+  staffMember   Staff?
+
+  @@index([email])
+  @@index([estateId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique
+  userId    String   @map("user_id") @db.Uuid
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model LoginAttempt {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  email     String
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([userId])
+  @@map("login_attempts")
+}
+
+model Invitation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String
+  role      UserRole
+  estateId  String   @map("estate_id") @db.Uuid
+  token     String   @unique
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  invitedBy String   @map("invited_by") @db.Uuid
+  acceptedAt DateTime? @map("accepted_at")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  estate Estate @relation(fields: [estateId], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@map("invitations")
+}
+
+// ========================
+// ESTATES & PROPERTIES
+// ========================
+
+model Estate {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  address     String
+  city        String?
+  state       String?
+  country     String?
+  postalCode  String? @map("postal_code")
+  latitude    Float?
+  longitude   Float?
+  logoUrl     String? @map("logo_url")
+  description String?
+  timezone    String  @default("UTC")
+  currency    String  @default("GHS")
+  rules       String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users       User[]
+  clusters    Cluster[]
+  buildings   Building[]
+  invitations Invitation[]
+  amenities   EstateAmenity[]
+  landlords   Landlord[]
+  tenants     Tenant[]
+  feeComponents  FeeComponent[]
+  feeSchedules   FeeSchedule[]
+  invoices       Invoice[]
+  complaints     Complaint[]
+  notifications  Notification[]
+  serviceRequests ServiceRequest[]
+  visitors       VisitorInvite[]
+  gateLogs       GateLog[]
+  vehicles       Vehicle[]
+  meters         Meter[]
+  documents      Document[]
+  staff          Staff[]
+  vendors        Vendor[]
+  auditLogs      AuditLog[]
+  specialLevies  SpecialLevy[]
+
+  @@index([name])
+  @@map("estates")
+}
+
+model Cluster {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name     String
+  estateId String  @map("estate_id") @db.Uuid
+  code     String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate    Estate    @relation(fields: [estateId], references: [id])
+  buildings Building[]
+
+  @@unique([estateId, name])
+  @@index([estateId])
+  @@map("clusters")
+}
+
+model Building {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  estateId  String  @map("estate_id") @db.Uuid
+  clusterId String? @map("cluster_id") @db.Uuid
+  address   String?
+  floors    Int     @default(1)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate    Estate   @relation(fields: [estateId], references: [id])
+  cluster   Cluster? @relation(fields: [clusterId], references: [id])
+  units     Unit[]
+
+  @@index([estateId])
+  @@index([clusterId])
+  @@map("buildings")
+}
+
+enum UnitStatus {
+  vacant
+  occupied
+  under_maintenance
+  reserved
+}
+
+enum UnitType {
+  studio
+  one_bed
+  two_bed
+  three_bed
+  penthouse
+  commercial
+}
+
+model Unit {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitNumber    String     @map("unit_number")
+  houseNumber   String?    @map("house_number")
+  buildingId    String     @map("building_id") @db.Uuid
+  floor         Int        @default(1)
+  unitType      UnitType   @default(one_bed) @map("unit_type")
+  status        UnitStatus @default(vacant)
+  sizeSqft      Float?     @map("size_sqft")
+  bedrooms      Int        @default(1)
+  bathrooms     Int        @default(1)
+  features      Json?
+  rentAmount    Decimal?   @map("rent_amount") @db.Decimal(12, 2)
+  floorPlanUrl  String?    @map("floor_plan_url")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  building      Building        @relation(fields: [buildingId], references: [id])
+  leases        Lease[]
+  unitHistory   UnitHistory[]
+  feeAssignments UnitFeeAssignment[]
+  invoices      Invoice[]
+  serviceRequests ServiceRequest[]
+  complaints    Complaint[]
+  meters        Meter[]
+  documents     Document[]
+
+  @@unique([buildingId, unitNumber])
+  @@index([buildingId])
+  @@index([status])
+  @@map("units")
+}
+
+model UnitHistory {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitId   String @map("unit_id") @db.Uuid
+  action   String
+  details  Json?
+  actorId  String? @map("actor_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  unit Unit @relation(fields: [unitId], references: [id])
+
+  @@index([unitId])
+  @@map("unit_history")
+}
+
+model Amenity {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String @unique
+  description String?
+  icon        String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  estates EstateAmenity[]
+
+  @@map("amenities")
+}
+
+model EstateAmenity {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId String @map("estate_id") @db.Uuid
+  amenityId String @map("amenity_id") @db.Uuid
+  isActive  Boolean @default(true) @map("is_active")
+
+  estate  Estate  @relation(fields: [estateId], references: [id])
+  amenity Amenity @relation(fields: [amenityId], references: [id])
+
+  @@unique([estateId, amenityId])
+  @@map("estate_amenities")
+}
+
+// ========================
+// LANDLORDS & TENANTS
+// ========================
+
+model Landlord {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String  @unique @map("user_id") @db.Uuid
+  estateId      String  @map("estate_id") @db.Uuid
+  bankName      String? @map("bank_name")
+  bankAccountNo String? @map("bank_account_no")
+  bankAccountName String? @map("bank_account_name")
+  bankCode      String? @map("bank_code")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  estate Estate  @relation(fields: [estateId], references: [id])
+  leases Lease[]
+  payouts LandlordPayout[]
+
+  @@index([estateId])
+  @@map("landlords")
+}
+
+model Tenant {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String  @unique @map("user_id") @db.Uuid
+  estateId          String  @map("estate_id") @db.Uuid
+  emergencyContact  String? @map("emergency_contact")
+  emergencyPhone    String? @map("emergency_phone")
+  employerName      String? @map("employer_name")
+  employerPhone     String? @map("employer_phone")
+  idDocumentUrl     String? @map("id_document_url")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  estate Estate  @relation(fields: [estateId], references: [id])
+  leases Lease[]
+  payments Payment[]
+  complaints Complaint[]
+  serviceRequests ServiceRequest[]
+  visitorInvites VisitorInvite[]
+
+  @@index([estateId])
+  @@map("tenants")
+}
+
+enum LeaseStatus {
+  draft
+  pending_signature
+  active
+  expired
+  terminated
+  renewed
+}
+
+model Lease {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitId        String      @map("unit_id") @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  landlordId    String      @map("landlord_id") @db.Uuid
+  status        LeaseStatus @default(draft)
+  rentAmount    Decimal     @map("rent_amount") @db.Decimal(12, 2)
+  startDate     DateTime    @map("start_date")
+  endDate       DateTime    @map("end_date")
+  terms         String?
+  depositAmount Decimal?    @map("deposit_amount") @db.Decimal(12, 2)
+  depositStatus String?     @map("deposit_status")
+  signedAt      DateTime?   @map("signed_at")
+  terminatedAt  DateTime?   @map("terminated_at")
+  terminationReason String? @map("termination_reason")
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  unit     Unit     @relation(fields: [unitId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  landlord Landlord @relation(fields: [landlordId], references: [id])
+
+  @@index([unitId])
+  @@index([tenantId])
+  @@index([landlordId])
+  @@index([status])
+  @@map("leases")
+}
+
+// ========================
+// EMF (ESTATE MANAGEMENT FEE)
+// ========================
+
+enum ChargeType {
+  fixed
+  per_unit
+  per_sqft
+  percentage_of_rent
+  tiered
+}
+
+enum FeeComponentCategory {
+  utility
+  security
+  cleaning
+  administration
+  insurance
+  reserve_fund
+  amenity
+  infrastructure
+  special_levy
+}
+
+enum BillingFrequency {
+  monthly
+  quarterly
+  semi_annually
+  annually
+  one_time
+}
+
+model FeeComponent {
+  id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId      String               @map("estate_id") @db.Uuid
+  name          String
+  description   String?
+  category      FeeComponentCategory
+  chargeType    ChargeType           @map("charge_type")
+  amount        Decimal              @db.Decimal(12, 2)
+  frequency     BillingFrequency
+  isActive      Boolean              @default(true) @map("is_active")
+  isSuspended   Boolean              @default(false) @map("is_suspended")
+  suspendedReason String?            @map("suspended_reason")
+  justification String?
+  metadata      Json?
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate    Estate @relation(fields: [estateId], references: [id])
+  scheduleComponents FeeScheduleComponent[]
+  documents FeeComponentDocument[]
+  waivers   FeeWaiver[]
+  disputes  FeeDispute[]
+  invoices  ComponentInvoice[]
+
+  @@index([estateId])
+  @@index([category])
+  @@map("fee_components")
+}
+
+model FeeComponentDocument {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeComponentId String @map("fee_component_id") @db.Uuid
+  fileName       String @map("file_name")
+  fileUrl        String @map("file_url")
+  fileType       String @map("file_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id])
+
+  @@map("fee_component_documents")
+}
+
+enum FeeScheduleStatus {
+  draft
+  notice_published
+  active
+  archived
+}
+
+model FeeSchedule {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId      String            @map("estate_id") @db.Uuid
+  name          String
+  status        FeeScheduleStatus @default(draft)
+  effectiveDate DateTime?         @map("effective_date")
+  noticeDate    DateTime?         @map("notice_date")
+  version       Int               @default(1)
+  changelog     String?
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate     Estate @relation(fields: [estateId], references: [id])
+  components FeeScheduleComponent[]
+  versions   FeeScheduleVersion[]
+  unitAssignments UnitFeeAssignment[]
+
+  @@index([estateId])
+  @@index([status])
+  @@map("fee_schedules")
+}
+
+model FeeScheduleVersion {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeScheduleId  String @map("fee_schedule_id") @db.Uuid
+  version        Int
+  data           Json
+  changelog      String?
+  createdBy      String? @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  feeSchedule FeeSchedule @relation(fields: [feeScheduleId], references: [id])
+
+  @@index([feeScheduleId])
+  @@map("fee_schedule_versions")
+}
+
+model FeeScheduleComponent {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeScheduleId  String  @map("fee_schedule_id") @db.Uuid
+  feeComponentId String  @map("fee_component_id") @db.Uuid
+  landlordSplit  Decimal @default(0) @map("landlord_split") @db.Decimal(5, 2)
+  tenantSplit    Decimal @default(100) @map("tenant_split") @db.Decimal(5, 2)
+
+  feeSchedule  FeeSchedule  @relation(fields: [feeScheduleId], references: [id])
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id])
+
+  @@unique([feeScheduleId, feeComponentId])
+  @@map("fee_schedule_components")
+}
+
+model UnitFeeAssignment {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitId        String @map("unit_id") @db.Uuid
+  feeScheduleId String @map("fee_schedule_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  unit        Unit        @relation(fields: [unitId], references: [id])
+  feeSchedule FeeSchedule @relation(fields: [feeScheduleId], references: [id])
+
+  @@unique([unitId, feeScheduleId])
+  @@map("unit_fee_assignments")
+}
+
+model SpecialLevy {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId      String  @map("estate_id") @db.Uuid
+  name          String
+  description   String?
+  amount        Decimal @db.Decimal(12, 2)
+  justification String?
+  installments  Int     @default(1)
+  isActive      Boolean @default(true) @map("is_active")
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate Estate @relation(fields: [estateId], references: [id])
+
+  @@index([estateId])
+  @@map("special_levies")
+}
+
+model FeeWaiver {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeComponentId String   @map("fee_component_id") @db.Uuid
+  unitId         String   @map("unit_id") @db.Uuid
+  reason         String
+  startDate      DateTime @map("start_date")
+  endDate        DateTime? @map("end_date")
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id])
+
+  @@map("fee_waivers")
+}
+
+model FeeDispute {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeComponentId String  @map("fee_component_id") @db.Uuid
+  raisedBy       String  @map("raised_by") @db.Uuid
+  query          String
+  response       String?
+  status         String  @default("open")
+  resolvedAt     DateTime? @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id])
+
+  @@map("fee_disputes")
+}
+
+model ComponentInvoice {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feeComponentId String  @map("fee_component_id") @db.Uuid
+  vendorName     String? @map("vendor_name")
+  invoiceNumber  String? @map("invoice_number")
+  amount         Decimal @db.Decimal(12, 2)
+  fileUrl        String? @map("file_url")
+  period         String?
+  notes          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id])
+
+  @@map("component_invoices")
+}
+
+model ReserveFundTransaction {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String  @map("estate_id") @db.Uuid
+  type        String
+  amount      Decimal @db.Decimal(12, 2)
+  description String?
+  reference   String?
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([estateId])
+  @@map("reserve_fund_transactions")
+}
+
+// ========================
+// PAYMENTS & FINANCIALS
+// ========================
+
+enum InvoiceStatus {
+  draft
+  sent
+  paid
+  partially_paid
+  overdue
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+  partially_paid
+}
+
+enum PaymentMethod {
+  bank_transfer
+  card
+  mobile_money
+  cash
+}
+
+model Invoice {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId      String        @map("estate_id") @db.Uuid
+  unitId        String?       @map("unit_id") @db.Uuid
+  tenantId      String?       @map("tenant_id") @db.Uuid
+  invoiceNumber String        @unique @map("invoice_number")
+  type          String
+  status        InvoiceStatus @default(draft)
+  subtotal      Decimal       @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  amountPaid    Decimal       @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  dueDate       DateTime      @map("due_date")
+  issuedDate    DateTime      @default(now()) @map("issued_date")
+  paidDate      DateTime?     @map("paid_date")
+  notes         String?
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate   Estate    @relation(fields: [estateId], references: [id])
+  unit     Unit?     @relation(fields: [unitId], references: [id])
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([estateId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId   String  @map("invoice_id") @db.Uuid
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
+  total       Decimal @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Payment {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId     String        @map("invoice_id") @db.Uuid
+  tenantId      String?       @map("tenant_id") @db.Uuid
+  amount        Decimal       @db.Decimal(12, 2)
+  method        PaymentMethod
+  status        PaymentStatus @default(pending)
+  reference     String?       @unique
+  gatewayRef    String?       @map("gateway_ref")
+  gateway       String?
+  paidAt        DateTime?     @map("paid_at")
+  metadata      Json?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id])
+  tenant  Tenant?  @relation(fields: [tenantId], references: [id])
+  receipt Receipt?
+
+  @@index([invoiceId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Receipt {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId      String  @unique @map("payment_id") @db.Uuid
+  number         String  @unique
+  receivedFrom   String? @map("received_from")
+  houseNumber    String? @map("house_number")
+  cluster        String?
+  contactNumber  String? @map("contact_number")
+  description    String?
+  paymentPeriod  String? @map("payment_period")
+  balanceDue     Decimal? @map("balance_due") @db.Decimal(12, 2)
+  issuedBy       String? @map("issued_by") @db.Uuid
+  fileUrl        String? @map("file_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([number])
+  @@map("receipts")
+}
+
+model Expense {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String  @map("estate_id") @db.Uuid
+  category    String
+  description String
+  amount      Decimal @db.Decimal(12, 2)
+  vendorId    String? @map("vendor_id") @db.Uuid
+  receiptUrl  String? @map("receipt_url")
+  date        DateTime
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([estateId])
+  @@map("expenses")
+}
+
+model LandlordPayout {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  landlordId   String  @map("landlord_id") @db.Uuid
+  grossAmount  Decimal @map("gross_amount") @db.Decimal(12, 2)
+  managementFee Decimal @map("management_fee") @db.Decimal(12, 2)
+  netAmount    Decimal @map("net_amount") @db.Decimal(12, 2)
+  period       String
+  status       String  @default("pending")
+  paidAt       DateTime? @map("paid_at")
+  reference    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  landlord Landlord @relation(fields: [landlordId], references: [id])
+
+  @@index([landlordId])
+  @@map("landlord_payouts")
+}
+
+// ========================
+// MAINTENANCE & SERVICES
+// ========================
+
+enum ServiceRequestStatus {
+  submitted
+  acknowledged
+  assigned
+  in_progress
+  pending_approval
+  completed
+  closed
+}
+
+enum ServiceRequestPriority {
+  critical
+  high
+  normal
+  low
+}
+
+enum ServiceRequestCategory {
+  plumbing
+  electrical
+  structural
+  appliance
+  pest_control
+  hvac
+  general
+  emergency
+}
+
+model ServiceRequest {
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String                 @map("estate_id") @db.Uuid
+  unitId      String?                @map("unit_id") @db.Uuid
+  tenantId    String?                @map("tenant_id") @db.Uuid
+  title       String
+  description String
+  category    ServiceRequestCategory
+  priority    ServiceRequestPriority @default(normal)
+  status      ServiceRequestStatus   @default(submitted)
+  assignedTo  String?                @map("assigned_to") @db.Uuid
+  estimatedCost Decimal?             @map("estimated_cost") @db.Decimal(12, 2)
+  actualCost    Decimal?             @map("actual_cost") @db.Decimal(12, 2)
+  rating        Int?
+  ratingComment String?              @map("rating_comment")
+  completedAt   DateTime?            @map("completed_at")
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate      Estate  @relation(fields: [estateId], references: [id])
+  unit        Unit?   @relation(fields: [unitId], references: [id])
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
+  attachments ServiceRequestAttachment[]
+
+  @@index([estateId])
+  @@index([status])
+  @@index([priority])
+  @@map("service_requests")
+}
+
+model ServiceRequestAttachment {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceRequestId String @map("service_request_id") @db.Uuid
+  fileName         String @map("file_name")
+  fileUrl          String @map("file_url")
+  fileType         String @map("file_type")
+  stage            String @default("before")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id])
+
+  @@map("service_request_attachments")
+}
+
+model MaintenanceSchedule {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String   @map("estate_id") @db.Uuid
+  title       String
+  description String?
+  frequency   String
+  nextDueDate DateTime @map("next_due_date")
+  lastDoneAt  DateTime? @map("last_done_at")
+  assignedTo  String?  @map("assigned_to") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([estateId])
+  @@map("maintenance_schedules")
+}
+
+// ========================
+// COMPLAINTS
+// ========================
+
+enum ComplaintStatus {
+  open
+  investigating
+  action_taken
+  pending_closure
+  closed
+}
+
+enum ComplaintCategory {
+  noise
+  plumbing_complaint
+  security_complaint
+  neighbor_dispute
+  management_issue
+  billing
+  structural_complaint
+  pest
+  facility
+  staff_behavior
+  other
+}
+
+model Complaint {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String            @map("estate_id") @db.Uuid
+  unitId      String?           @map("unit_id") @db.Uuid
+  tenantId    String?           @map("tenant_id") @db.Uuid
+  title       String
+  description String
+  category    ComplaintCategory
+  status      ComplaintStatus   @default(open)
+  urgency     String            @default("normal")
+  isAnonymous Boolean           @default(false) @map("is_anonymous")
+  assignedTo  String?           @map("assigned_to") @db.Uuid
+  resolution  String?
+  resolvedAt  DateTime?         @map("resolved_at")
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate  Estate  @relation(fields: [estateId], references: [id])
+  unit    Unit?   @relation(fields: [unitId], references: [id])
+  tenant  Tenant? @relation(fields: [tenantId], references: [id])
+  updates ComplaintUpdate[]
+  attachments ComplaintAttachment[]
+
+  @@index([estateId])
+  @@index([status])
+  @@map("complaints")
+}
+
+model ComplaintUpdate {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  complaintId String  @map("complaint_id") @db.Uuid
+  message     String
+  isInternal  Boolean @default(false) @map("is_internal")
+  authorId    String  @map("author_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+
+  @@index([complaintId])
+  @@map("complaint_updates")
+}
+
+model ComplaintAttachment {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  complaintId String @map("complaint_id") @db.Uuid
+  fileName    String @map("file_name")
+  fileUrl     String @map("file_url")
+  fileType    String @map("file_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+
+  @@map("complaint_attachments")
+}
+
+// ========================
+// NOTIFICATIONS
+// ========================
+
+model Notification {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  estateId String? @map("estate_id") @db.Uuid
+  type     String
+  title    String
+  message  String
+  data     Json?
+  isRead   Boolean @default(false) @map("is_read")
+  readAt   DateTime? @map("read_at")
+  channel  String  @default("in_app")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  estate Estate? @relation(fields: [estateId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type     String @unique
+  subject  String
+  body     String
+  channels String[]
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_templates")
+}
+
+model NotificationPreference {
+  id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId  String  @map("user_id") @db.Uuid
+  type    String
+  channel String
+  enabled Boolean @default(true)
+
+  @@unique([userId, type, channel])
+  @@map("notification_preferences")
+}
+
+// ========================
+// STAFF & VENDORS
+// ========================
+
+enum StaffRole {
+  security_guard
+  cleaner
+  electrician
+  plumber
+  facility_manager
+  receptionist
+  gate_officer
+}
+
+model Staff {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String    @unique @map("user_id") @db.Uuid
+  estateId String    @map("estate_id") @db.Uuid
+  role     StaffRole
+  salary   Decimal?  @db.Decimal(12, 2)
+  hireDate DateTime  @map("hire_date")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  estate Estate @relation(fields: [estateId], references: [id])
+  shifts ShiftAssignment[]
+  dutyLogs DutyLog[]
+  tasks  StaffTask[]
+  leaves StaffLeave[]
+
+  @@index([estateId])
+  @@map("staff")
+}
+
+model Shift {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  days      String[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  assignments ShiftAssignment[]
+
+  @@map("shifts")
+}
+
+model ShiftAssignment {
+  id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId String   @map("staff_id") @db.Uuid
+  shiftId String   @map("shift_id") @db.Uuid
+  date    DateTime
+
+  staff Staff @relation(fields: [staffId], references: [id])
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  @@map("shift_assignments")
+}
+
+model DutyLog {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId  String    @map("staff_id") @db.Uuid
+  clockIn  DateTime  @map("clock_in")
+  clockOut DateTime? @map("clock_out")
+  notes    String?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("duty_logs")
+}
+
+model StaffTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  title       String
+  description String?
+  status      String    @default("pending")
+  dueDate     DateTime? @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  notes       String?
+  photoUrl    String?   @map("photo_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("staff_tasks")
+}
+
+model StaffLeave {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  type      String
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  reason    String?
+  status    String   @default("pending")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@map("staff_leaves")
+}
+
+model Vendor {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String  @map("estate_id") @db.Uuid
+  name        String
+  specialty   String?
+  contactName String? @map("contact_name")
+  phone       String?
+  email       String?
+  address     String?
+  rating      Float?
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate    Estate @relation(fields: [estateId], references: [id])
+  contracts VendorContract[]
+
+  @@index([estateId])
+  @@map("vendors")
+}
+
+model VendorContract {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendorId   String    @map("vendor_id") @db.Uuid
+  title      String
+  startDate  DateTime  @map("start_date")
+  endDate    DateTime? @map("end_date")
+  value      Decimal?  @db.Decimal(12, 2)
+  fileUrl    String?   @map("file_url")
+  slaTerms   String?   @map("sla_terms")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@map("vendor_contracts")
+}
+
+// ========================
+// VISITORS & ACCESS
+// ========================
+
+model VisitorInvite {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId       String    @map("estate_id") @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  visitorName    String    @map("visitor_name")
+  visitorPhone   String?   @map("visitor_phone")
+  purpose        String
+  expectedArrival DateTime @map("expected_arrival")
+  duration       String?
+  qrCode         String?   @map("qr_code")
+  pin            String?
+  isUsed         Boolean   @default(false) @map("is_used")
+  expiresAt      DateTime  @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  estate Estate @relation(fields: [estateId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  gateLog GateLog?
+
+  @@index([estateId])
+  @@index([pin])
+  @@map("visitor_invites")
+}
+
+model GateLog {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId       String    @map("estate_id") @db.Uuid
+  visitorInviteId String?  @unique @map("visitor_invite_id") @db.Uuid
+  visitorName    String    @map("visitor_name")
+  visitorPhone   String?   @map("visitor_phone")
+  purpose        String?
+  entryTime      DateTime  @map("entry_time")
+  exitTime       DateTime? @map("exit_time")
+  authorizedBy   String?   @map("authorized_by") @db.Uuid
+  processedBy    String?   @map("processed_by") @db.Uuid
+  isWalkIn       Boolean   @default(false) @map("is_walk_in")
+  vehiclePlate   String?   @map("vehicle_plate")
+  notes          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  estate        Estate         @relation(fields: [estateId], references: [id])
+  visitorInvite VisitorInvite? @relation(fields: [visitorInviteId], references: [id])
+
+  @@index([estateId])
+  @@index([entryTime])
+  @@map("gate_logs")
+}
+
+model Vehicle {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId     String  @map("estate_id") @db.Uuid
+  licensePlate String  @map("license_plate")
+  ownerName    String  @map("owner_name")
+  unitId       String? @map("unit_id") @db.Uuid
+  parkingSlot  String? @map("parking_slot")
+  color        String?
+  make         String?
+  model        String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estate Estate @relation(fields: [estateId], references: [id])
+
+  @@index([estateId])
+  @@index([licensePlate])
+  @@map("vehicles")
+}
+
+model Blacklist {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId String  @map("estate_id") @db.Uuid
+  name     String
+  phone    String?
+  reason   String
+  addedBy  String  @map("added_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([estateId])
+  @@map("blacklist")
+}
+
+// ========================
+// UTILITIES
+// ========================
+
+enum UtilityType {
+  electricity
+  water
+  gas
+  internet
+  waste_collection
+}
+
+model Meter {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId String      @map("estate_id") @db.Uuid
+  unitId   String      @map("unit_id") @db.Uuid
+  type     UtilityType
+  meterNumber String   @map("meter_number")
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  estate   Estate        @relation(fields: [estateId], references: [id])
+  unit     Unit          @relation(fields: [unitId], references: [id])
+  readings MeterReading[]
+
+  @@unique([estateId, meterNumber])
+  @@index([unitId])
+  @@map("meters")
+}
+
+model MeterReading {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meterId   String  @map("meter_id") @db.Uuid
+  reading   Decimal @db.Decimal(12, 2)
+  readingDate DateTime @map("reading_date")
+  consumption Decimal? @db.Decimal(12, 2)
+  notes     String?
+  readBy    String? @map("read_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  meter Meter @relation(fields: [meterId], references: [id])
+
+  @@index([meterId])
+  @@index([readingDate])
+  @@map("meter_readings")
+}
+
+model UtilityRate {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String      @map("estate_id") @db.Uuid
+  type        UtilityType
+  ratePerUnit Decimal     @map("rate_per_unit") @db.Decimal(12, 4)
+  unit        String
+  effectiveFrom DateTime  @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([estateId, type])
+  @@map("utility_rates")
+}
+
+// ========================
+// DOCUMENTS
+// ========================
+
+enum DocumentType {
+  lease_agreement
+  id_document
+  proof_of_income
+  move_in_report
+  notice_letter
+  policy_document
+  vendor_contract
+  insurance_certificate
+  inspection_report
+}
+
+model Document {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId    String       @map("estate_id") @db.Uuid
+  unitId      String?      @map("unit_id") @db.Uuid
+  type        DocumentType
+  title       String
+  fileName    String       @map("file_name")
+  fileUrl     String       @map("file_url")
+  fileSize    Int          @map("file_size")
+  mimeType    String       @map("mime_type")
+  version     Int          @default(1)
+  expiresAt   DateTime?    @map("expires_at")
+  metadata    Json?
+
+  uploadedBy String?   @map("uploaded_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  estate  Estate @relation(fields: [estateId], references: [id])
+  unit    Unit?  @relation(fields: [unitId], references: [id])
+
+  @@index([estateId])
+  @@index([type])
+  @@map("documents")
+}
+
+// ========================
+// AUDIT LOG
+// ========================
+
+model AuditLog {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estateId  String? @map("estate_id") @db.Uuid
+  actorId   String @map("actor_id") @db.Uuid
+  action    String
+  resource  String
+  resourceId String? @map("resource_id") @db.Uuid
+  diff      Json?
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor  User    @relation("AuditActor", fields: [actorId], references: [id])
+  estate Estate? @relation(fields: [estateId], references: [id])
+
+  @@index([estateId])
+  @@index([actorId])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
