@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Download, ArrowUpRight, ArrowDownRight, Plus, Loader2, CreditCard, Smartphone, Building2, Banknote, CheckCircle2, ArrowRight, ArrowLeft, Phone, Wallet, Shield, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -172,7 +172,7 @@ export default function PaymentsPage() {
   const { data: apiData } = usePayments();
   const recordPayment = useRecordPayment();
 
-  const payments: Payment[] = apiData?.data
+  const allPayments: Payment[] = apiData?.data
     ? apiData.data.map((p: any) => ({
         id: p.id,
         tenant: p.invoice?.tenant?.user ? `${p.invoice.tenant.user.firstName} ${p.invoice.tenant.user.lastName}` : 'Unknown',
@@ -185,9 +185,30 @@ export default function PaymentsPage() {
       }))
     : localPayments;
 
+  // Role-based payment filtering
+  const payments = useMemo(() => {
+    if (isTenant) {
+      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_CTX.name;
+      return allPayments.filter((p) => p.tenant.toLowerCase().includes(tenantName.toLowerCase()));
+    }
+    if (isLandlord) {
+      const landlordUnits = DEMO_LANDLORD_UNITS.map((u) => u.unitNumber);
+      return allPayments.filter((p) => landlordUnits.includes(p.unit));
+    }
+    return allPayments;
+  }, [allPayments, isTenant, isLandlord, user]);
+
   const filtered = payments.filter((p) =>
     p.tenant.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Dynamic stats based on filtered payments
+  const totalPaid = filtered.filter((p) => p.status === 'completed').reduce((s, p) => s + p.amount, 0);
+  const pendingAmount = filtered.filter((p) => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const pendingCount = filtered.filter((p) => p.status === 'pending').length;
+  const failedAmount = filtered.filter((p) => p.status === 'failed').reduce((s, p) => s + p.amount, 0);
+  const failedCount = filtered.filter((p) => p.status === 'failed').length;
+  const successRate = filtered.length > 0 ? ((filtered.filter((p) => p.status === 'completed').length / filtered.length) * 100).toFixed(1) : '0';
 
   const methodLabel = (m: string) => {
     if (m === 'mobile_money') return 'Mobile Money';
@@ -260,8 +281,8 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold">Payments</h1>
-          <p className="text-muted-foreground mt-1">Track and manage all payment transactions</p>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">{isTenant ? 'My Payments' : isLandlord ? 'Property Payments' : 'Payments'}</h1>
+          <p className="text-muted-foreground mt-1">{isTenant ? 'View and track your payment history' : isLandlord ? 'Payments for your properties' : 'Track and manage all payment transactions'}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" size="sm"><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
@@ -272,10 +293,10 @@ export default function PaymentsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Total Revenue (MTD)</p><p className="text-2xl font-bold mt-1">GH₵ 458,000</p><div className="flex items-center gap-1 mt-1 text-green-600 text-xs"><ArrowUpRight className="h-3 w-3" /> +8.3% vs last month</div></CardContent></Card>
-        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold mt-1">GH₵ 32,400</p><div className="flex items-center gap-1 mt-1 text-orange-600 text-xs">12 transactions</div></CardContent></Card>
-        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Failed</p><p className="text-2xl font-bold mt-1">GH₵ 15,200</p><div className="flex items-center gap-1 mt-1 text-red-600 text-xs"><ArrowDownRight className="h-3 w-3" /> 4 transactions</div></CardContent></Card>
-        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Success Rate</p><p className="text-2xl font-bold mt-1">96.2%</p><div className="flex items-center gap-1 mt-1 text-green-600 text-xs"><ArrowUpRight className="h-3 w-3" /> +2.1%</div></CardContent></Card>
+        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">{isTenant ? 'Total Paid' : 'Total Revenue (MTD)'}</p><p className="text-2xl font-bold mt-1">GH₵ {totalPaid.toLocaleString()}</p><div className="flex items-center gap-1 mt-1 text-green-600 text-xs">{filtered.filter((p) => p.status === 'completed').length} completed</div></CardContent></Card>
+        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold mt-1">GH₵ {pendingAmount.toLocaleString()}</p><div className="flex items-center gap-1 mt-1 text-orange-600 text-xs">{pendingCount} transaction{pendingCount !== 1 ? 's' : ''}</div></CardContent></Card>
+        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Failed</p><p className="text-2xl font-bold mt-1">GH₵ {failedAmount.toLocaleString()}</p><div className="flex items-center gap-1 mt-1 text-red-600 text-xs">{failedCount} transaction{failedCount !== 1 ? 's' : ''}</div></CardContent></Card>
+        <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Success Rate</p><p className="text-2xl font-bold mt-1">{successRate}%</p><div className="flex items-center gap-1 mt-1 text-green-600 text-xs">{filtered.length} total</div></CardContent></Card>
       </div>
 
       <Card>
@@ -291,7 +312,7 @@ export default function PaymentsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>ID</TableHead>
-                <TableHead>Tenant</TableHead>
+                {!isTenant && <TableHead>Tenant</TableHead>}
                 <TableHead>Unit</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Amount</TableHead>
@@ -304,7 +325,7 @@ export default function PaymentsPage() {
               {filtered.map((p) => (
                 <TableRow key={p.id} className="cursor-pointer" onClick={() => setShowDetail(p)}>
                   <TableCell className="font-mono text-xs">{p.id}</TableCell>
-                  <TableCell className="font-medium">{p.tenant}</TableCell>
+                  {!isTenant && <TableCell className="font-medium">{p.tenant}</TableCell>}
                   <TableCell>{p.unit}</TableCell>
                   <TableCell><Badge variant="outline">{p.type}</Badge></TableCell>
                   <TableCell className="font-semibold">GH₵ {p.amount.toLocaleString()}</TableCell>
