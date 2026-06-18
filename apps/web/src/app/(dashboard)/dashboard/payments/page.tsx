@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Download, ArrowUpRight, ArrowDownRight, Plus, Loader2, CreditCard, Smartphone, Building2, Banknote, CheckCircle2, ArrowRight, ArrowLeft, Phone, Wallet, Shield } from 'lucide-react';
+import { Search, Download, ArrowUpRight, ArrowDownRight, Plus, Loader2, CreditCard, Smartphone, Building2, Banknote, CheckCircle2, ArrowRight, ArrowLeft, Phone, Wallet, Shield, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,13 +25,13 @@ interface Payment {
 }
 
 const initialPayments: Payment[] = [
-  { id: 'PAY-001', tenant: 'Kwame Asante', unit: 'A-101', type: 'Rent', amount: 3500, method: 'Mobile Money', date: '2025-01-05', status: 'completed' },
-  { id: 'PAY-002', tenant: 'Ama Mensah', unit: 'A-203', type: 'EMF', amount: 850, method: 'Bank Transfer', date: '2025-01-04', status: 'completed' },
-  { id: 'PAY-003', tenant: 'Kofi Boateng', unit: 'B-102', type: 'Rent', amount: 4200, method: 'Mobile Money', date: '2025-01-03', status: 'completed' },
-  { id: 'PAY-004', tenant: 'Abena Owusu', unit: 'A-301', type: 'Rent', amount: 5800, method: 'Bank Transfer', date: '2025-01-02', status: 'pending' },
-  { id: 'PAY-005', tenant: 'Yaw Darko', unit: 'B-201', type: 'EMF', amount: 850, method: 'Card', date: '2025-01-01', status: 'completed' },
-  { id: 'PAY-006', tenant: 'Akosua Frimpong', unit: 'A-402', type: 'Rent', amount: 3500, method: 'Mobile Money', date: '2024-12-31', status: 'failed' },
-  { id: 'PAY-007', tenant: 'Nana Agyemang', unit: 'B-301', type: 'Utility', amount: 320, method: 'Mobile Money', date: '2024-12-30', status: 'completed' },
+  { id: 'PAY-001', tenant: 'Kwame Asante', unit: 'A-101', type: 'Rent', amount: 3500, method: 'Mobile Money', date: '2026-06-18', status: 'completed' },
+  { id: 'PAY-002', tenant: 'Ama Mensah', unit: 'A-203', type: 'EMF', amount: 850, method: 'Bank Transfer', date: '2026-06-17', status: 'completed' },
+  { id: 'PAY-003', tenant: 'Kofi Boateng', unit: 'B-102', type: 'Rent', amount: 4200, method: 'Mobile Money', date: '2026-06-16', status: 'completed' },
+  { id: 'PAY-004', tenant: 'Abena Owusu', unit: 'A-301', type: 'Rent', amount: 5800, method: 'Bank Transfer', date: '2026-06-15', status: 'pending' },
+  { id: 'PAY-005', tenant: 'Yaw Darko', unit: 'B-201', type: 'EMF', amount: 850, method: 'Card', date: '2026-06-14', status: 'completed' },
+  { id: 'PAY-006', tenant: 'Akosua Frimpong', unit: 'A-402', type: 'Rent', amount: 3500, method: 'Mobile Money', date: '2026-06-13', status: 'failed' },
+  { id: 'PAY-007', tenant: 'Nana Agyemang', unit: 'B-301', type: 'Utility', amount: 320, method: 'Mobile Money', date: '2026-06-12', status: 'completed' },
 ];
 
 // Demo context for tenant auto-fill
@@ -203,14 +203,16 @@ export default function PaymentsPage() {
     setStep('processing');
     // Simulate payment processing
     setTimeout(() => {
+      const today = new Date().toISOString().split('T')[0];
+      const payId = `PAY-${String(payments.length + 1).padStart(3, '0')}`;
       const newPayment: Payment = {
-        id: `PAY-${String(payments.length + 1).padStart(3, '0')}`,
+        id: payId,
         tenant: form.tenantName,
         unit: form.unit,
         type: form.type,
         amount: form.amount,
         method: methodLabel(form.method),
-        date: new Date().toISOString().split('T')[0],
+        date: today,
         status: 'completed',
       };
       recordPayment.mutate(
@@ -218,6 +220,16 @@ export default function PaymentsPage() {
         { onError: () => setLocalPayments([newPayment, ...localPayments]) },
       );
       setLocalPayments([newPayment, ...localPayments]);
+
+      // Generate receipt number: DDMMYY-SEQ-UNIT
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yy = String(d.getFullYear()).slice(-2);
+      const unitClean = form.unit.replace(/[^a-zA-Z0-9]/g, '');
+      const receiptNo = `${dd}${mm}${yy}-${payments.length + 1}-00${unitClean}`;
+      setLastReceiptNumber(receiptNo);
+
       setStep('success');
     }, 2500);
   };
@@ -229,9 +241,12 @@ export default function PaymentsPage() {
     form.method !== 'bank_transfer' || form.bankReference.length > 0
   );
 
+  const [lastReceiptNumber, setLastReceiptNumber] = useState('');
+
   const closeDialog = () => {
     setShowAdd(false);
     setStep('what');
+    setLastReceiptNumber('');
   };
 
   // ─── Step indicators
@@ -649,6 +664,16 @@ export default function PaymentsPage() {
                 <Separator className="my-1" />
                 <div className="flex justify-between font-bold"><span>Amount</span><span className="text-green-600">GH₵ {form.amount.toLocaleString()}</span></div>
               </div>
+              {lastReceiptNumber && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-xs mx-auto">
+                  <div className="flex items-center gap-2 justify-center mb-2">
+                    <Receipt className="h-4 w-4 text-green-600" />
+                    <p className="text-sm font-semibold text-green-800">Receipt Generated</p>
+                  </div>
+                  <p className="text-xs font-mono font-bold text-green-700">{lastReceiptNumber}</p>
+                  <a href="/dashboard/receipts" className="inline-block mt-2 text-xs text-green-700 underline hover:text-green-900">View in Receipts →</a>
+                </div>
+              )}
             </div>
           )}
 
@@ -656,7 +681,10 @@ export default function PaymentsPage() {
           {step !== 'processing' && (
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {step === 'success' ? (
-                <Button onClick={closeDialog} className="w-full">Done</Button>
+                <div className="flex gap-2 w-full">
+                  <Button variant="outline" onClick={closeDialog} className="flex-1">Done</Button>
+                  <a href="/dashboard/receipts" className="flex-1"><Button className="w-full gap-2"><Receipt className="h-4 w-4" /> View Receipt</Button></a>
+                </div>
               ) : (
                 <>
                   {step !== 'what' && (
