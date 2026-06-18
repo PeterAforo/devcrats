@@ -25,17 +25,18 @@ interface ReceiptItem {
   period: string;
 }
 
+// Receipts correspond 1:1 with completed payments — only completed payments generate receipts
 const allMockReceipts: ReceiptItem[] = [
-  { id: '1', number: '301025-1-00AC12', receivedFrom: 'Sarah Adwoa Mansa Ackah-Ayensu', houseNumber: 'AC12', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Estate Management Fee (EMF)', date: '2025-10-30', period: 'January 2026' },
-  { id: '2', number: '281025-2-00BD05', receivedFrom: 'Kwame Asante', houseNumber: 'BD05', cluster: 'Horizon', amount: 450, method: 'Mobile Money', description: 'Rent', date: '2025-10-28', period: 'January 2026' },
-  { id: '3', number: '271025-1-00AC03', receivedFrom: 'Ama Mensah', houseNumber: 'AC03', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Estate Management Fee (EMF)', date: '2025-10-27', period: 'December 2025' },
-  { id: '4', number: '251025-3-00HR08', receivedFrom: 'Kofi Boateng', houseNumber: 'HR08', cluster: 'Horizon', amount: 600, method: 'Mobile Money', description: 'Rent', date: '2025-10-25', period: 'Jan-Feb 2026' },
-  { id: '5', number: '201025-1-00BV14', receivedFrom: 'Abena Owusu', houseNumber: 'BV14', cluster: 'Bellavista', amount: 300, method: 'Card', description: 'Maintenance Fee', date: '2025-10-20', period: 'January 2026' },
-  { id: '6', number: '181025-2-00AC22', receivedFrom: 'Yaw Darko', houseNumber: 'AC22', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Service Request — Plumbing', date: '2025-10-18', period: 'January 2026' },
+  { id: '1', number: '180626-1-00A101', receivedFrom: 'Kwame Asante', houseNumber: 'A-101', cluster: 'East Legon Hills', amount: 3500, method: 'Mobile Money', description: 'Rent', date: '2026-06-18', period: 'June 2026' },
+  { id: '2', number: '170626-2-00A203', receivedFrom: 'Ama Mensah', houseNumber: 'A-203', cluster: 'East Legon Hills', amount: 850, method: 'Bank Transfer', description: 'Estate Management Fee (EMF)', date: '2026-06-17', period: 'June 2026' },
+  { id: '3', number: '160626-3-00B102', receivedFrom: 'Kofi Boateng', houseNumber: 'B-102', cluster: 'Cantonments Res.', amount: 4200, method: 'Mobile Money', description: 'Rent', date: '2026-06-16', period: 'June 2026' },
+  { id: '4', number: '140626-5-00B201', receivedFrom: 'Yaw Darko', houseNumber: 'B-201', cluster: 'Kumasi Royal Gardens', amount: 850, method: 'Card', description: 'Estate Management Fee (EMF)', date: '2026-06-14', period: 'June 2026' },
+  { id: '5', number: '120626-7-00B301', receivedFrom: 'Nana Agyemang', houseNumber: 'B-301', cluster: 'East Legon Hills', amount: 320, method: 'Mobile Money', description: 'Utility', date: '2026-06-12', period: 'June 2026' },
 ];
+// Note: PAY-004 (Abena Owusu, pending) and PAY-006 (Akosua Frimpong, failed) have no receipts
 
 const DEMO_TENANT_NAME = 'Kwame Asante';
-const DEMO_LANDLORD_UNITS = ['AC12', 'CE08'];
+const DEMO_LANDLORD_UNITS = ['A-101', 'B-102'];
 
 export default function ReceiptsPage() {
   const [search, setSearch] = useState('');
