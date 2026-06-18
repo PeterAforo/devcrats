@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Receipt, Search, Plus, Printer, Eye, Download } from 'lucide-react';
 import { useReceipts, useCreateReceipt } from '@/lib/hooks';
+import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 
 interface ReceiptItem {
@@ -23,7 +24,7 @@ interface ReceiptItem {
   period: string;
 }
 
-const mockReceipts: ReceiptItem[] = [
+const allMockReceipts: ReceiptItem[] = [
   { id: '1', number: '301025-1-00AC12', receivedFrom: 'Sarah Adwoa Mansa Ackah-Ayensu', houseNumber: 'AC12', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-30', period: 'January 2026' },
   { id: '2', number: '281025-2-00BD05', receivedFrom: 'Kwame Asante', houseNumber: 'BD05', cluster: 'Horizon', amount: 450, method: 'Mobile Money', date: '2025-10-28', period: 'January 2026' },
   { id: '3', number: '271025-1-00AC03', receivedFrom: 'Ama Mensah', houseNumber: 'AC03', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-27', period: 'December 2025' },
@@ -32,11 +33,14 @@ const mockReceipts: ReceiptItem[] = [
   { id: '6', number: '181025-2-00AC22', receivedFrom: 'Yaw Darko', houseNumber: 'AC22', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-18', period: 'January 2026' },
 ];
 
+const DEMO_TENANT_NAME = 'Kwame Asante';
+const DEMO_LANDLORD_UNITS = ['AC12', 'CE08'];
+
 export default function ReceiptsPage() {
-  const [localReceipts] = useState<ReceiptItem[]>(mockReceipts);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showPreview, setShowPreview] = useState<ReceiptItem | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState({
     paymentId: '',
     receivedFrom: '',
@@ -48,10 +52,17 @@ export default function ReceiptsPage() {
     balanceDue: 0,
   });
 
+  const user = useAuthStore((s) => s.user);
+  const role = user?.role || 'tenant';
+  const isTenant = role === 'tenant';
+  const isLandlord = role === 'landlord';
+  const isAdmin = role === 'super_admin' || role === 'estate_manager';
+  const canGenerate = isAdmin || isLandlord;
+
   const { data: apiData } = useReceipts(1, search || undefined);
   const createReceipt = useCreateReceipt();
 
-  const receipts: ReceiptItem[] = apiData?.data?.data
+  const apiReceipts: ReceiptItem[] = apiData?.data?.data
     ? apiData.data.data.map((r: any) => ({
         id: r.id,
         number: r.number,
@@ -63,7 +74,21 @@ export default function ReceiptsPage() {
         date: new Date(r.createdAt).toISOString().split('T')[0],
         period: r.paymentPeriod || '—',
       }))
-    : localReceipts;
+    : [];
+
+  // Role-based receipt filtering
+  const receipts = useMemo(() => {
+    const source = apiReceipts.length > 0 ? apiReceipts : allMockReceipts;
+
+    if (isTenant) {
+      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_NAME;
+      return source.filter((r) => r.receivedFrom.toLowerCase().includes(tenantName.toLowerCase()));
+    }
+    if (isLandlord) {
+      return source.filter((r) => DEMO_LANDLORD_UNITS.includes(r.houseNumber));
+    }
+    return source;
+  }, [apiReceipts, isTenant, isLandlord, user]);
 
   const filtered = receipts.filter((r) =>
     r.receivedFrom.toLowerCase().includes(search.toLowerCase()) ||
@@ -87,33 +112,87 @@ export default function ReceiptsPage() {
   };
 
   const handlePrint = (receipt: ReceiptItem) => {
-    const printUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/receipts/${receipt.id}/print`;
-    window.open(printUrl, '_blank');
+    const printWindow = window.open('', '_blank', 'width=600,height=700');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html><head><title>Receipt ${receipt.number}</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 500px; margin: 0 auto; }
+        .header { text-align: center; border-bottom: 2px solid #222; padding-bottom: 16px; margin-bottom: 20px; }
+        .header h2 { margin: 0; font-size: 20px; }
+        .header p { margin: 2px 0; font-size: 11px; color: #666; }
+        .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .title-row h3 { margin: 0; font-size: 16px; }
+        .title-row span { font-family: monospace; font-size: 13px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; }
+        .grid .label { color: #888; font-size: 11px; }
+        .grid .value { font-weight: 600; }
+        .amount { border: 2px solid #222; display: inline-block; padding: 12px 24px; border-radius: 6px; font-size: 22px; font-weight: bold; margin-top: 20px; }
+        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 12px; display: flex; justify-content: space-between; font-size: 11px; color: #999; }
+        @media print { body { padding: 20px; } }
+      </style>
+      </head><body>
+        <div class="header">
+          <h2>DEVCRAS</h2>
+          <p>Devtraco Courts Residents Association</p>
+          <p>No. 2, El Minya Crescent, Horizon, Devtraco Courts</p>
+        </div>
+        <div class="title-row">
+          <h3>OFFICIAL RECEIPT</h3>
+          <span>No.: ${receipt.number}</span>
+        </div>
+        <div class="grid">
+          <div><div class="label">Received from</div><div class="value">${receipt.receivedFrom}</div></div>
+          <div><div class="label">Date</div><div class="value">${new Date(receipt.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+          <div><div class="label">House No</div><div class="value">${receipt.houseNumber}</div></div>
+          <div><div class="label">Cluster</div><div class="value">${receipt.cluster}</div></div>
+          <div><div class="label">Mode of Payment</div><div class="value">${receipt.method}</div></div>
+          <div><div class="label">Period</div><div class="value">${receipt.period}</div></div>
+        </div>
+        <div class="amount">GH&#8373; ${receipt.amount.toFixed(2)}</div>
+        <div class="footer">
+          <span>Generated by EstateIQ</span>
+          <span>Printed: ${new Date().toLocaleDateString('en-GB')}</span>
+        </div>
+      </body></html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 300);
   };
+
+  const pageTitle = isTenant ? 'My Receipts' : isLandlord ? 'Property Receipts' : 'Receipts';
+  const pageDesc = isTenant
+    ? 'View and print receipts for your payments'
+    : isLandlord
+      ? 'Receipts for payments on your properties'
+      : 'Generate and manage payment receipts';
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold">Receipts</h1>
-          <p className="text-muted-foreground mt-1">Generate and manage payment receipts</p>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">{pageTitle}</h1>
+          <p className="text-muted-foreground mt-1">{pageDesc}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" size="sm"><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
-          <Button className="gap-2" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Generate</span> Receipt</Button>
+          {canGenerate && (
+            <Button className="gap-2" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Generate</span> Receipt</Button>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Receipts Issued</p>
+            <p className="text-sm text-muted-foreground">{isTenant ? 'Your Receipts' : 'Receipts Issued'}</p>
             <p className="text-2xl font-bold mt-1">{totalIssued}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Total Amount Receipted</p>
+            <p className="text-sm text-muted-foreground">{isTenant ? 'Total Paid' : 'Total Amount Receipted'}</p>
             <p className="text-2xl font-bold mt-1">GH₵ {totalAmount.toLocaleString()}</p>
           </CardContent>
         </Card>
@@ -137,7 +216,7 @@ export default function ReceiptsPage() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left p-3 font-medium">Receipt No.</th>
-                  <th className="text-left p-3 font-medium">Received From</th>
+                  {!isTenant && <th className="text-left p-3 font-medium">Received From</th>}
                   <th className="text-left p-3 font-medium">House No.</th>
                   <th className="text-left p-3 font-medium">Cluster</th>
                   <th className="text-left p-3 font-medium">Amount</th>
@@ -151,7 +230,7 @@ export default function ReceiptsPage() {
                 {filtered.map((r) => (
                   <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3 font-mono text-xs">{r.number}</td>
-                    <td className="p-3 font-medium">{r.receivedFrom}</td>
+                    {!isTenant && <td className="p-3 font-medium">{r.receivedFrom}</td>}
                     <td className="p-3"><Badge variant="outline">{r.houseNumber}</Badge></td>
                     <td className="p-3">{r.cluster}</td>
                     <td className="p-3 font-semibold">GH₵ {r.amount.toLocaleString()}</td>
@@ -171,7 +250,7 @@ export default function ReceiptsPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">No receipts found</td></tr>
+                  <tr><td colSpan={isTenant ? 8 : 9} className="p-8 text-center text-muted-foreground">No receipts found</td></tr>
                 )}
               </tbody>
             </table>
@@ -186,7 +265,7 @@ export default function ReceiptsPage() {
             <DialogTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" /> Receipt Preview</DialogTitle>
           </DialogHeader>
           {showPreview && (
-            <div className="space-y-4 border rounded-lg p-6">
+            <div className="space-y-4 border rounded-lg p-6" ref={printRef}>
               <div className="text-center border-b pb-4">
                 <h3 className="font-bold text-lg text-primary">DEVCRAS</h3>
                 <p className="text-xs text-muted-foreground">Devtraco Courts Residents Association</p>
@@ -217,33 +296,35 @@ export default function ReceiptsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Receipt Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Generate Receipt</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Received From</Label><Input value={form.receivedFrom} onChange={(e) => setForm({ ...form, receivedFrom: e.target.value })} placeholder="Full name" /></div>
-              <div><Label>House Number</Label><Input value={form.houseNumber} onChange={(e) => setForm({ ...form, houseNumber: e.target.value })} placeholder="e.g. AC12" /></div>
+      {/* Create Receipt Dialog — Admin/Landlord only */}
+      {canGenerate && (
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Generate Receipt</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><Label>Received From</Label><Input value={form.receivedFrom} onChange={(e) => setForm({ ...form, receivedFrom: e.target.value })} placeholder="Full name" /></div>
+                <div><Label>House Number</Label><Input value={form.houseNumber} onChange={(e) => setForm({ ...form, houseNumber: e.target.value })} placeholder="e.g. AC12" /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><Label>Cluster</Label><Input value={form.cluster} onChange={(e) => setForm({ ...form, cluster: e.target.value })} placeholder="e.g. Bellavilla" /></div>
+                <div><Label>Contact Number</Label><Input value={form.contactNumber} onChange={(e) => setForm({ ...form, contactNumber: e.target.value })} placeholder="024xxxxxxx" /></div>
+              </div>
+              <div><Label>Description (Being)</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Estate Management Fee (EMF) for..." /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><Label>Payment Period</Label><Input value={form.paymentPeriod} onChange={(e) => setForm({ ...form, paymentPeriod: e.target.value })} placeholder="e.g. January 2026" /></div>
+                <div><Label>Balance Due (GH₵)</Label><Input type="number" value={form.balanceDue} onChange={(e) => setForm({ ...form, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
+              </div>
+              <div><Label>Payment ID (from system)</Label><Input value={form.paymentId} onChange={(e) => setForm({ ...form, paymentId: e.target.value })} placeholder="Payment UUID" /></div>
+              <Button onClick={handleCreate} disabled={!form.receivedFrom || !form.houseNumber} className="gap-2">
+                <Receipt className="h-4 w-4" /> Generate Receipt
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Cluster</Label><Input value={form.cluster} onChange={(e) => setForm({ ...form, cluster: e.target.value })} placeholder="e.g. Bellavilla" /></div>
-              <div><Label>Contact Number</Label><Input value={form.contactNumber} onChange={(e) => setForm({ ...form, contactNumber: e.target.value })} placeholder="024xxxxxxx" /></div>
-            </div>
-            <div><Label>Description (Being)</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Estate Management Fee (EMF) for..." /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Payment Period</Label><Input value={form.paymentPeriod} onChange={(e) => setForm({ ...form, paymentPeriod: e.target.value })} placeholder="e.g. January 2026" /></div>
-              <div><Label>Balance Due (GH₵)</Label><Input type="number" value={form.balanceDue} onChange={(e) => setForm({ ...form, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
-            </div>
-            <div><Label>Payment ID (from system)</Label><Input value={form.paymentId} onChange={(e) => setForm({ ...form, paymentId: e.target.value })} placeholder="Payment UUID" /></div>
-            <Button onClick={handleCreate} disabled={!form.receivedFrom || !form.houseNumber} className="gap-2">
-              <Receipt className="h-4 w-4" /> Generate Receipt
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
