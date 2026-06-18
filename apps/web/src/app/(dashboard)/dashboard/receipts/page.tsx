@@ -20,17 +20,18 @@ interface ReceiptItem {
   cluster: string;
   amount: number;
   method: string;
+  description: string;
   date: string;
   period: string;
 }
 
 const allMockReceipts: ReceiptItem[] = [
-  { id: '1', number: '301025-1-00AC12', receivedFrom: 'Sarah Adwoa Mansa Ackah-Ayensu', houseNumber: 'AC12', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-30', period: 'January 2026' },
-  { id: '2', number: '281025-2-00BD05', receivedFrom: 'Kwame Asante', houseNumber: 'BD05', cluster: 'Horizon', amount: 450, method: 'Mobile Money', date: '2025-10-28', period: 'January 2026' },
-  { id: '3', number: '271025-1-00AC03', receivedFrom: 'Ama Mensah', houseNumber: 'AC03', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-27', period: 'December 2025' },
-  { id: '4', number: '251025-3-00HR08', receivedFrom: 'Kofi Boateng', houseNumber: 'HR08', cluster: 'Horizon', amount: 600, method: 'Mobile Money', date: '2025-10-25', period: 'Jan-Feb 2026' },
-  { id: '5', number: '201025-1-00BV14', receivedFrom: 'Abena Owusu', houseNumber: 'BV14', cluster: 'Bellavista', amount: 300, method: 'Card', date: '2025-10-20', period: 'January 2026' },
-  { id: '6', number: '181025-2-00AC22', receivedFrom: 'Yaw Darko', houseNumber: 'AC22', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', date: '2025-10-18', period: 'January 2026' },
+  { id: '1', number: '301025-1-00AC12', receivedFrom: 'Sarah Adwoa Mansa Ackah-Ayensu', houseNumber: 'AC12', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Estate Management Fee (EMF)', date: '2025-10-30', period: 'January 2026' },
+  { id: '2', number: '281025-2-00BD05', receivedFrom: 'Kwame Asante', houseNumber: 'BD05', cluster: 'Horizon', amount: 450, method: 'Mobile Money', description: 'Rent', date: '2025-10-28', period: 'January 2026' },
+  { id: '3', number: '271025-1-00AC03', receivedFrom: 'Ama Mensah', houseNumber: 'AC03', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Estate Management Fee (EMF)', date: '2025-10-27', period: 'December 2025' },
+  { id: '4', number: '251025-3-00HR08', receivedFrom: 'Kofi Boateng', houseNumber: 'HR08', cluster: 'Horizon', amount: 600, method: 'Mobile Money', description: 'Rent', date: '2025-10-25', period: 'Jan-Feb 2026' },
+  { id: '5', number: '201025-1-00BV14', receivedFrom: 'Abena Owusu', houseNumber: 'BV14', cluster: 'Bellavista', amount: 300, method: 'Card', description: 'Maintenance Fee', date: '2025-10-20', period: 'January 2026' },
+  { id: '6', number: '181025-2-00AC22', receivedFrom: 'Yaw Darko', houseNumber: 'AC22', cluster: 'Bellavilla', amount: 300, method: 'Bank Transfer', description: 'Service Request — Plumbing', date: '2025-10-18', period: 'January 2026' },
 ];
 
 const DEMO_TENANT_NAME = 'Kwame Asante';
@@ -71,6 +72,7 @@ export default function ReceiptsPage() {
         cluster: r.cluster || '—',
         amount: Number(r.payment?.amount || 0),
         method: r.payment?.method?.replace('_', ' ') || '—',
+        description: r.description || r.payment?.type?.replace('_', ' ') || '—',
         date: new Date(r.createdAt).toISOString().split('T')[0],
         period: r.paymentPeriod || '—',
       }))
@@ -147,6 +149,7 @@ export default function ReceiptsPage() {
           <div><div class="label">Date</div><div class="value">${new Date(receipt.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
           <div><div class="label">House No</div><div class="value">${receipt.houseNumber}</div></div>
           <div><div class="label">Cluster</div><div class="value">${receipt.cluster}</div></div>
+          <div><div class="label">Being payment of</div><div class="value" style="color:#222;font-weight:700">${receipt.description}</div></div>
           <div><div class="label">Mode of Payment</div><div class="value">${receipt.method}</div></div>
           <div><div class="label">Period</div><div class="value">${receipt.period}</div></div>
         </div>
@@ -220,6 +223,7 @@ export default function ReceiptsPage() {
                   <th className="text-left p-3 font-medium">House No.</th>
                   <th className="text-left p-3 font-medium">Cluster</th>
                   <th className="text-left p-3 font-medium">Amount</th>
+                  <th className="text-left p-3 font-medium">Being</th>
                   <th className="text-left p-3 font-medium">Method</th>
                   <th className="text-left p-3 font-medium">Date</th>
                   <th className="text-left p-3 font-medium">Period</th>
@@ -234,6 +238,7 @@ export default function ReceiptsPage() {
                     <td className="p-3"><Badge variant="outline">{r.houseNumber}</Badge></td>
                     <td className="p-3">{r.cluster}</td>
                     <td className="p-3 font-semibold">GH₵ {r.amount.toLocaleString()}</td>
+                    <td className="p-3"><Badge variant="secondary" className="text-xs">{r.description}</Badge></td>
                     <td className="p-3 capitalize">{r.method}</td>
                     <td className="p-3 text-muted-foreground">{r.date}</td>
                     <td className="p-3">{r.period}</td>
@@ -250,7 +255,7 @@ export default function ReceiptsPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={isTenant ? 8 : 9} className="p-8 text-center text-muted-foreground">No receipts found</td></tr>
+                  <tr><td colSpan={isTenant ? 9 : 10} className="p-8 text-center text-muted-foreground">No receipts found</td></tr>
                 )}
               </tbody>
             </table>
@@ -280,6 +285,7 @@ export default function ReceiptsPage() {
                 <div><span className="text-muted-foreground">Date:</span><p className="font-medium">{new Date(showPreview.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
                 <div><span className="text-muted-foreground">House No:</span><p className="font-medium">{showPreview.houseNumber}</p></div>
                 <div><span className="text-muted-foreground">Cluster:</span><p className="font-medium">{showPreview.cluster}</p></div>
+                <div><span className="text-muted-foreground">Being payment of:</span><p className="font-semibold">{showPreview.description}</p></div>
                 <div><span className="text-muted-foreground">Mode of Payment:</span><p className="font-medium capitalize">{showPreview.method}</p></div>
                 <div><span className="text-muted-foreground">Period:</span><p className="font-medium">{showPreview.period}</p></div>
               </div>
