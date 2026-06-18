@@ -1,12 +1,17 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
+// Auto-detect if API is unreachable: no NEXT_PUBLIC_API_URL set + running on a non-localhost domain
+const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+const hasConfiguredApi = !!process.env.NEXT_PUBLIC_API_URL;
+const shouldAutoDemoMode = isProduction && !hasConfiguredApi;
+
 interface FetchOptions extends RequestInit {
   token?: string;
 }
 
 class ApiClient {
   private accessToken: string | null = null;
-  private _demoMode = false;
+  private _demoMode = shouldAutoDemoMode;
 
   setToken(token: string | null) {
     this.accessToken = token;
