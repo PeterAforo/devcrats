@@ -370,6 +370,111 @@ export function useDeleteDocument() {
   });
 }
 
+// ─── TENANT PROFILE (MY UNIT) ───────────────────────────
+export function useMyTenantProfile() {
+  return useQuery({
+    queryKey: ['my-tenant-profile'],
+    queryFn: () => api.get('/tenants/me'),
+  });
+}
+
+export function useFamilyMembers(tenantId: string) {
+  return useQuery({
+    queryKey: ['family-members', tenantId],
+    queryFn: () => api.get(`/tenants/${tenantId}/family`),
+    enabled: !!tenantId,
+  });
+}
+
+export function useAddFamilyMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantId, data }: { tenantId: string; data: any }) => api.post(`/tenants/${tenantId}/family`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['family-members'] });
+      qc.invalidateQueries({ queryKey: ['my-tenant-profile'] });
+    },
+  });
+}
+
+export function useRemoveFamilyMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/family-members/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['family-members'] });
+      qc.invalidateQueries({ queryKey: ['my-tenant-profile'] });
+    },
+  });
+}
+
+// ─── TENANT CHANGE REQUESTS ────────────────────────────
+export function useCreateChangeRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantId, data }: { tenantId: string; data: { field: string; newValue: string; reason?: string } }) =>
+      api.post(`/tenants/${tenantId}/change-requests`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['change-requests'] }),
+  });
+}
+
+export function useChangeRequests(tenantId?: string, status?: string, page = 1) {
+  return useQuery({
+    queryKey: ['change-requests', tenantId, status, page],
+    queryFn: () => api.get(`/change-requests?page=${page}${tenantId ? `&tenantId=${tenantId}` : ''}${status ? `&status=${status}` : ''}`),
+  });
+}
+
+export function useReviewChangeRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { status: 'approved' | 'rejected'; reviewNote?: string } }) =>
+      api.put(`/change-requests/${id}/review`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['change-requests'] }),
+  });
+}
+
+// ─── LANDLORD PROFILE ──────────────────────────────────
+export function useMyLandlordProfile() {
+  return useQuery({
+    queryKey: ['my-landlord-profile'],
+    queryFn: () => api.get('/landlords/me'),
+  });
+}
+
+export function useAddPropertyToLandlord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ landlordId, data }: { landlordId: string; data: { unitId: string; occupancyType?: string } }) =>
+      api.post(`/landlords/${landlordId}/properties`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-landlord-profile'] });
+      qc.invalidateQueries({ queryKey: ['landlords'] });
+    },
+  });
+}
+
+export function useRemovePropertyFromLandlord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ landlordId, unitId }: { landlordId: string; unitId: string }) =>
+      api.delete(`/landlords/${landlordId}/properties/${unitId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-landlord-profile'] });
+      qc.invalidateQueries({ queryKey: ['landlords'] });
+    },
+  });
+}
+
+// ─── LANDLORD-TENANT TREE ──────────────────────────────
+export function useLandlordTenantTree(estateId: string) {
+  return useQuery({
+    queryKey: ['landlord-tenant-tree', estateId],
+    queryFn: () => api.get(`/estates/${estateId}/tree`),
+    enabled: !!estateId,
+  });
+}
+
 // ─── RECEIPTS ────────────────────────────────────────────
 export function useReceipts(page = 1, search?: string) {
   return useQuery({

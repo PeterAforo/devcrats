@@ -122,6 +122,8 @@ async function main() {
       emailVerified: true,
       estateId: estate.id,
       phone: '+233200000003',
+      idType: 'ghana_card',
+      idNumber: 'GHA-710203456-3',
     },
   });
   const landlord = await prisma.landlord.create({
@@ -145,18 +147,36 @@ async function main() {
       emailVerified: true,
       estateId: estate.id,
       phone: '+233200000004',
+      idType: 'ghana_card',
+      idNumber: 'GHA-901115678-9',
     },
   });
   const tenant = await prisma.tenant.create({
     data: {
       userId: tenantUser.id,
       estateId: estate.id,
+      landlordId: landlord.id,
       emergencyContact: 'Ama Asante',
       emergencyPhone: '+233200000005',
       employerName: 'MTN Ghana Ltd',
+      idType: 'ghana_card',
+      idNumber: 'GHA-901115678-9',
+      nationality: 'Ghanaian',
+      occupation: 'Telecom Engineer',
+      addedByLandlord: true,
     },
   });
   console.log('  ✓ Tenant created:', tenantUser.email);
+
+  // Family members
+  await prisma.familyMember.createMany({
+    data: [
+      { tenantId: tenant.id, firstName: 'Ama', lastName: 'Asante', relationship: 'Spouse', phone: '+233200000006', idType: 'ghana_card', idNumber: 'GHA-930422345-1' },
+      { tenantId: tenant.id, firstName: 'Kofi', lastName: 'Asante', relationship: 'Son', dateOfBirth: new Date('2015-08-20') },
+      { tenantId: tenant.id, firstName: 'Abena', lastName: 'Asante', relationship: 'Daughter', dateOfBirth: new Date('2018-12-05') },
+    ],
+  });
+  console.log('  ✓ Family members created for tenant');
 
   const occupiedUnit = units.find((u) => u.status === 'occupied');
   if (occupiedUnit) {
@@ -176,6 +196,29 @@ async function main() {
       },
     });
     console.log('  ✓ Lease created for', occupiedUnit.unitNumber);
+
+    // Property ownership - landlord owns and rents this unit
+    await prisma.propertyOwnership.create({
+      data: {
+        landlordId: landlord.id,
+        unitId: occupiedUnit.id,
+        occupancyType: 'rented',
+      },
+    });
+    console.log('  ✓ Property ownership created for landlord');
+  }
+
+  // Landlord also self-occupies a second unit
+  const selfUnit = units.find((u) => u.status === 'occupied' && u.id !== (occupiedUnit?.id || ''));
+  if (selfUnit) {
+    await prisma.propertyOwnership.create({
+      data: {
+        landlordId: landlord.id,
+        unitId: selfUnit.id,
+        occupancyType: 'self_occupied',
+      },
+    });
+    console.log('  ✓ Self-occupied property created for landlord');
   }
 
   const securityFee = await prisma.feeComponent.create({

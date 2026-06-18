@@ -102,8 +102,9 @@ export default function PersonsPage() {
     name: '', email: '', phone: '', unit: '', estate: '',
     leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single' as TenantType,
     nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '',
+    idType: '' as string, idNumber: '', occupation: '', dateOfBirth: '',
   });
-  const [lForm, setLForm] = useState({ name: '', email: '', phone: '', properties: '', bank: '' });
+  const [lForm, setLForm] = useState({ name: '', email: '', phone: '', properties: '', bank: '', idType: '' as string, idNumber: '' });
 
   const filteredTenants = tenants.filter((t) => t.name.toLowerCase().includes(search.toLowerCase()) || t.landlordName.toLowerCase().includes(search.toLowerCase()));
   const filteredLandlords = landlords.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
@@ -124,7 +125,7 @@ export default function PersonsPage() {
       { firstName: tForm.name.split(' ')[0], lastName: tForm.name.split(' ').slice(1).join(' '), email: tForm.email, phone: tForm.phone, estateId: '', unitId: '', landlordId: tForm.landlordId, leaseStartDate: tForm.leaseStart, leaseEndDate: tForm.leaseEnd },
       { onError: () => setLocalTenants([t, ...localTenants]) },
     );
-    setTForm({ name: '', email: '', phone: '', unit: '', estate: '', leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single', nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '' });
+    setTForm({ name: '', email: '', phone: '', unit: '', estate: '', leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single', nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '', idType: '', idNumber: '', occupation: '', dateOfBirth: '' });
     setShowAddTenant(false);
   };
 
@@ -139,7 +140,7 @@ export default function PersonsPage() {
       { firstName: lForm.name.split(' ')[0], lastName: lForm.name.split(' ').slice(1).join(' '), email: lForm.email, phone: lForm.phone, estateId: '', bankName: lForm.bank },
       { onError: () => setLocalLandlords([l, ...localLandlords]) },
     );
-    setLForm({ name: '', email: '', phone: '', properties: '', bank: '' });
+    setLForm({ name: '', email: '', phone: '', properties: '', bank: '', idType: '', idNumber: '' });
     setShowAddLandlord(false);
   };
 
@@ -289,8 +290,36 @@ export default function PersonsPage() {
                   <Input placeholder="e.g. Ghanaian" value={tForm.nationality} onChange={(e) => setTForm({ ...tForm, nationality: e.target.value })} />
                 </div>
                 <div className="space-y-2">
+                  <Label>Occupation</Label>
+                  <Input placeholder="e.g. Software Engineer" value={tForm.occupation} onChange={(e) => setTForm({ ...tForm, occupation: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Date of Birth</Label>
+                  <Input type="date" value={tForm.dateOfBirth} onChange={(e) => setTForm({ ...tForm, dateOfBirth: e.target.value })} />
+                </div>
+                <div className="space-y-2">
                   <Label>{tForm.tenantType === 'company' ? 'Number of Staff' : 'Number of Occupants'}</Label>
                   <Input type="number" min={1} value={tForm.occupants} onChange={(e) => setTForm({ ...tForm, occupants: +e.target.value })} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="text-sm font-semibold mb-3">ID Verification (Ghana Card / Passport)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>ID Type</Label>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={tForm.idType} onChange={(e) => setTForm({ ...tForm, idType: e.target.value })}>
+                    <option value="">Select ID Type...</option>
+                    <option value="ghana_card">Ghana Card</option>
+                    <option value="passport">Passport</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>ID Number</Label>
+                  <Input placeholder={tForm.idType === 'passport' ? 'G0123456' : 'GHA-123456789-0'} value={tForm.idNumber} onChange={(e) => setTForm({ ...tForm, idNumber: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -371,6 +400,23 @@ export default function PersonsPage() {
               <div className="space-y-2"><Label>Phone</Label><Input placeholder="+233 20 789 0123" value={lForm.phone} onChange={(e) => setLForm({ ...lForm, phone: e.target.value })} /></div>
               <div className="space-y-2"><Label>Bank</Label><Input placeholder="e.g. GCB Bank" value={lForm.bank} onChange={(e) => setLForm({ ...lForm, bank: e.target.value })} /></div>
             </div>
+            <Separator />
+            <h4 className="text-sm font-semibold">ID Verification</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>ID Type</Label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={lForm.idType} onChange={(e) => setLForm({ ...lForm, idType: e.target.value })}>
+                  <option value="">Select ID Type...</option>
+                  <option value="ghana_card">Ghana Card</option>
+                  <option value="passport">Passport</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>ID Number</Label>
+                <Input placeholder={lForm.idType === 'passport' ? 'G0123456' : 'GHA-123456789-0'} value={lForm.idNumber} onChange={(e) => setLForm({ ...lForm, idNumber: e.target.value })} />
+              </div>
+            </div>
+            <Separator />
             <div className="space-y-2">
               <Label>Properties (comma-separated)</Label>
               <Input placeholder="e.g. East Legon Hills, Tema Comm 25" value={lForm.properties} onChange={(e) => setLForm({ ...lForm, properties: e.target.value })} />

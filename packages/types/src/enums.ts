@@ -203,3 +203,19 @@ export enum FeeScheduleStatus {
   ACTIVE = 'active',
   ARCHIVED = 'archived',
 }
+
+export enum IdType {
+  GHANA_CARD = 'ghana_card',
+  PASSPORT = 'passport',
+}
+
+export enum OccupancyType {
+  SELF_OCCUPIED = 'self_occupied',
+  RENTED = 'rented',
+}
+
+export enum ChangeRequestStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}

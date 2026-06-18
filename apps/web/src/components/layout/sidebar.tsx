@@ -34,6 +34,8 @@ const adminNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
   { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
+  { label: 'Directory', href: '/dashboard/directory', icon: Users },
+  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
   { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
   { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
   { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
@@ -53,6 +55,8 @@ const managerNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
   { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
+  { label: 'Directory', href: '/dashboard/directory', icon: Users },
+  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
   { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
   { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
   { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
@@ -68,9 +72,11 @@ const managerNav: NavItem[] = [
 
 const landlordNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'My Properties', href: '/dashboard/estates', icon: Home },
+  { label: 'My Properties', href: '/dashboard/my-properties', icon: Home },
   { label: 'Tenants', href: '/dashboard/persons', icon: Users },
+  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
   { label: 'Income & Payments', href: '/dashboard/payments', icon: CreditCard },
+  { label: 'Receipts', href: '/dashboard/receipts', icon: Receipt },
   { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
   { label: 'Documents', href: '/dashboard/documents', icon: FileText },
   { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
@@ -79,8 +85,10 @@ const landlordNav: NavItem[] = [
 
 const tenantNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'My Unit', href: '/dashboard/estates', icon: Home },
+  { label: 'My Unit', href: '/dashboard/my-unit', icon: Home },
+  { label: 'My Family', href: '/dashboard/my-family', icon: Users },
   { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
+  { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
   { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
   { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
   { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },

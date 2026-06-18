@@ -34,6 +34,17 @@ export const estateSchema = z.object({
 });
 
 // ─── TENANTS ──────────────────────────────────────────────
+export const familyMemberSchema = z.object({
+  firstName: z.string().min(2, 'First name is required'),
+  lastName: z.string().min(2, 'Last name is required'),
+  relationship: z.string().min(2, 'Relationship is required'),
+  dateOfBirth: z.string().optional(),
+  phone: z.string().optional(),
+  photoUrl: z.string().optional(),
+  idType: z.enum(['ghana_card', 'passport']).optional(),
+  idNumber: z.string().optional(),
+});
+
 export const tenantSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
@@ -42,16 +53,29 @@ export const tenantSchema = z.object({
   estateId: z.string().uuid(),
   unitId: z.string().uuid(),
   landlordId: z.string().uuid(),
+  idType: z.enum(['ghana_card', 'passport']).optional(),
+  idNumber: z.string().optional(),
+  idDocumentUrl: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  nationality: z.string().optional(),
+  occupation: z.string().optional(),
+  avatarUrl: z.string().optional(),
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
-  nationality: z.string().optional(),
   tenantType: z.enum(['single', 'family', 'company']).optional(),
   occupants: z.number().min(1).optional(),
   companyName: z.string().optional(),
+  familyMembers: z.array(familyMemberSchema).optional(),
   leaseStartDate: z.string().min(1, 'Start date required'),
   leaseEndDate: z.string().min(1, 'End date required'),
   rentAmount: z.number().min(0).optional(),
   depositAmount: z.number().min(0).optional(),
+});
+
+export const changeRequestSchema = z.object({
+  field: z.string().min(1, 'Field is required'),
+  newValue: z.string().min(1, 'New value is required'),
+  reason: z.string().optional(),
 });
 
 // ─── LANDLORDS ────────────────────────────────────────────
@@ -61,6 +85,11 @@ export const landlordSchema = z.object({
   email: z.string().email('Enter a valid email'),
   phone: z.string().optional(),
   estateId: z.string().uuid(),
+  idType: z.enum(['ghana_card', 'passport']).optional(),
+  idNumber: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  unitIds: z.array(z.string().uuid()).optional(),
+  occupancyType: z.enum(['self_occupied', 'rented']).optional(),
   bankName: z.string().optional(),
   bankAccountNo: z.string().optional(),
   bankAccountName: z.string().optional(),
@@ -126,6 +155,8 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type EstateInput = z.infer<typeof estateSchema>;
 export type TenantInput = z.infer<typeof tenantSchema>;
 export type LandlordInput = z.infer<typeof landlordSchema>;
+export type FamilyMemberInput = z.infer<typeof familyMemberSchema>;
+export type ChangeRequestInput = z.infer<typeof changeRequestSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;

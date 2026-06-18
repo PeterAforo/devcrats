@@ -21,6 +21,22 @@ enum UserRole {
   viewer
 }
 
+enum IdType {
+  ghana_card
+  passport
+}
+
+enum OccupancyType {
+  self_occupied
+  rented
+}
+
+enum ChangeRequestStatus {
+  pending
+  approved
+  rejected
+}
+
 model User {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email         String    @unique
@@ -29,6 +45,9 @@ model User {
   lastName      String    @map("last_name")
   phone         String?
   avatarUrl     String?   @map("avatar_url")
+  avatarRequired Boolean  @default(true) @map("avatar_required")
+  idType        IdType?   @map("id_type")
+  idNumber      String?   @map("id_number")
   role          UserRole  @default(tenant)
   emailVerified Boolean   @default(false) @map("email_verified")
   mfaEnabled    Boolean   @default(false) @map("mfa_enabled")
@@ -245,6 +264,7 @@ model Unit {
   complaints    Complaint[]
   meters        Meter[]
   documents     Document[]
+  ownerships    PropertyOwnership[]
 
   @@unique([buildingId, unitNumber])
   @@index([buildingId])
@@ -310,10 +330,11 @@ model Landlord {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  user   User    @relation(fields: [userId], references: [id])
-  estate Estate  @relation(fields: [estateId], references: [id])
-  leases Lease[]
-  payouts LandlordPayout[]
+  user       User    @relation(fields: [userId], references: [id])
+  estate     Estate  @relation(fields: [estateId], references: [id])
+  leases     Lease[]
+  payouts    LandlordPayout[]
+  properties PropertyOwnership[]
 
   @@index([estateId])
   @@map("landlords")
@@ -323,26 +344,99 @@ model Tenant {
   id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId            String  @unique @map("user_id") @db.Uuid
   estateId          String  @map("estate_id") @db.Uuid
+  landlordId        String? @map("landlord_id") @db.Uuid
   emergencyContact  String? @map("emergency_contact")
   emergencyPhone    String? @map("emergency_phone")
   employerName      String? @map("employer_name")
   employerPhone     String? @map("employer_phone")
+  idType            IdType? @map("id_type")
+  idNumber          String? @map("id_number")
   idDocumentUrl     String? @map("id_document_url")
+  dateOfBirth       DateTime? @map("date_of_birth")
+  nationality       String?  @default("Ghanaian")
+  occupation        String?
+  addedByLandlord   Boolean @default(false) @map("added_by_landlord")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  user   User    @relation(fields: [userId], references: [id])
-  estate Estate  @relation(fields: [estateId], references: [id])
-  leases Lease[]
-  payments Payment[]
-  complaints Complaint[]
+  user            User    @relation(fields: [userId], references: [id])
+  estate          Estate  @relation(fields: [estateId], references: [id])
+  leases          Lease[]
+  payments        Payment[]
+  complaints      Complaint[]
   serviceRequests ServiceRequest[]
-  visitorInvites VisitorInvite[]
+  visitorInvites  VisitorInvite[]
+  familyMembers   FamilyMember[]
+  changeRequests  TenantChangeRequest[]
 
   @@index([estateId])
+  @@index([landlordId])
   @@map("tenants")
+}
+
+model FamilyMember {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  relationship String
+  dateOfBirth  DateTime? @map("date_of_birth")
+  phone        String?
+  photoUrl     String?   @map("photo_url")
+  idType       IdType?   @map("id_type")
+  idNumber     String?   @map("id_number")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("family_members")
+}
+
+model TenantChangeRequest {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String              @map("tenant_id") @db.Uuid
+  field       String
+  oldValue    String?             @map("old_value")
+  newValue    String              @map("new_value")
+  reason      String?
+  status      ChangeRequestStatus @default(pending)
+  reviewedBy  String?             @map("reviewed_by") @db.Uuid
+  reviewedAt  DateTime?           @map("reviewed_at")
+  reviewNote  String?             @map("review_note")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("tenant_change_requests")
+}
+
+model PropertyOwnership {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  landlordId    String        @map("landlord_id") @db.Uuid
+  unitId        String        @map("unit_id") @db.Uuid
+  occupancyType OccupancyType @default(self_occupied) @map("occupancy_type")
+  acquiredDate  DateTime?     @map("acquired_date")
+  isActive      Boolean       @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  landlord Landlord @relation(fields: [landlordId], references: [id])
+  unit     Unit     @relation(fields: [unitId], references: [id])
+
+  @@unique([landlordId, unitId])
+  @@index([landlordId])
+  @@index([unitId])
+  @@map("property_ownerships")
 }
 
 enum LeaseStatus {
