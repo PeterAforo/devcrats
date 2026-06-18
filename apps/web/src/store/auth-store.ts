@@ -50,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
           const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/login', { email, password });
           const { user, accessToken } = res.data;
           api.setToken(accessToken);
+          api.setDemoMode(false);
           set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch {
           // Fallback to demo mode if API unavailable
@@ -59,6 +60,7 @@ export const useAuthStore = create<AuthState>()(
             throw new Error('Invalid email or password');
           }
           api.setToken(null);
+          api.setDemoMode(true);
           set({ user: account, isAuthenticated: true, isLoading: false, isDemoMode: true });
         }
       },
@@ -71,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
           });
           const { user, accessToken } = res.data;
           api.setToken(accessToken);
+          api.setDemoMode(false);
           set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch {
           // Demo fallback
@@ -83,17 +86,21 @@ export const useAuthStore = create<AuthState>()(
             emailVerified: false,
             mfaEnabled: false,
           };
+          api.setDemoMode(true);
           set({ user: newUser, isAuthenticated: true, isLoading: false, isDemoMode: true });
         }
       },
 
       logout: async () => {
-        try {
-          await api.post('/auth/logout');
-        } catch {
-          // ignore
+        if (!api.isDemoMode) {
+          try {
+            await api.post('/auth/logout');
+          } catch {
+            // ignore
+          }
         }
         api.setToken(null);
+        api.setDemoMode(false);
         set({ user: null, isAuthenticated: false, isLoading: false, isDemoMode: false });
       },
 
@@ -111,6 +118,11 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'estateiq-auth',
       partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated, isDemoMode: state.isDemoMode }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.isDemoMode) {
+          api.setDemoMode(true);
+        }
+      },
     },
   ),
 );

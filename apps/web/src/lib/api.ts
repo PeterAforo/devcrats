@@ -6,6 +6,7 @@ interface FetchOptions extends RequestInit {
 
 class ApiClient {
   private accessToken: string | null = null;
+  private _demoMode = false;
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -15,7 +16,20 @@ class ApiClient {
     return this.accessToken;
   }
 
+  setDemoMode(demo: boolean) {
+    this._demoMode = demo;
+  }
+
+  get isDemoMode() {
+    return this._demoMode;
+  }
+
   async fetch<T = any>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+    // In demo mode, skip network calls entirely to avoid console errors
+    if (this._demoMode) {
+      return null as T;
+    }
+
     const { token, ...fetchOptions } = options;
 
     const headers: HeadersInit = {
