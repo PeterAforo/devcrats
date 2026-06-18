@@ -17,11 +17,11 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="profile" className="gap-2"><User className="h-4 w-4" /> Profile</TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" /> Notifications</TabsTrigger>
-          <TabsTrigger value="security" className="gap-2"><Shield className="h-4 w-4" /> Security</TabsTrigger>
-          <TabsTrigger value="appearance" className="gap-2"><Palette className="h-4 w-4" /> Appearance</TabsTrigger>
+        <TabsList className="flex flex-wrap">
+          <TabsTrigger value="profile" className="gap-2"><User className="h-4 w-4" /> <span className="hidden sm:inline">Profile</span></TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" /> <span className="hidden sm:inline">Notifications</span></TabsTrigger>
+          <TabsTrigger value="security" className="gap-2"><Shield className="h-4 w-4" /> <span className="hidden sm:inline">Security</span></TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-2"><Palette className="h-4 w-4" /> <span className="hidden sm:inline">Appearance</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -31,7 +31,7 @@ export default function SettingsPage() {
               <CardDescription>Update your personal details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
                   <Input id="firstName" defaultValue="Kwame" />

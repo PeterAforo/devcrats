@@ -93,14 +93,14 @@ export default function ReceiptsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Receipts</h1>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">Receipts</h1>
           <p className="text-muted-foreground mt-1">Generate and manage payment receipts</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export</Button>
-          <Button className="gap-2" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Generate Receipt</Button>
+          <Button variant="outline" className="gap-2" size="sm"><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
+          <Button className="gap-2" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Generate</span> Receipt</Button>
         </div>
       </div>
 

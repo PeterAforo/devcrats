@@ -80,14 +80,14 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Payments</h1>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">Payments</h1>
           <p className="text-muted-foreground mt-1">Track and manage all payment transactions</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export</Button>
-          <Button className="gap-2" onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" /> Record Payment</Button>
+          <Button variant="outline" className="gap-2" size="sm"><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
+          <Button className="gap-2" size="sm" onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" /> Record Payment</Button>
         </div>
       </div>
 
@@ -106,7 +106,7 @@ export default function PaymentsPage() {
             <Input placeholder="Search..." className="pl-9 w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

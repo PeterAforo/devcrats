@@ -152,14 +152,14 @@ export default function PersonsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Tenants & Landlords</h1>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">Tenants & Landlords</h1>
           <p className="text-muted-foreground mt-1">Manage property owners and their tenants</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setShowAddLandlord(true)}><Plus className="h-4 w-4" /> Add Landlord</Button>
-          <Button className="gap-2" onClick={() => setShowAddTenant(true)}><UserPlus className="h-4 w-4" /> Register Tenant</Button>
+          <Button variant="outline" className="gap-2" size="sm" onClick={() => setShowAddLandlord(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span> Landlord</Button>
+          <Button className="gap-2" size="sm" onClick={() => setShowAddTenant(true)}><UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">Register</span> Tenant</Button>
         </div>
       </div>
 
@@ -176,7 +176,7 @@ export default function PersonsPage() {
               <Input placeholder="Search by tenant or landlord name..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
-          <Card>
+          <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -209,7 +209,7 @@ export default function PersonsPage() {
         </TabsContent>
 
         <TabsContent value="landlords" className="space-y-4">
-          <Card>
+          <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

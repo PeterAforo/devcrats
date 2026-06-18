@@ -110,16 +110,34 @@ function getNavForRole(role?: string): NavItem[] {
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const navItems = getNavForRole(user?.role);
 
   return (
-    <aside
-      className={cn(
-        'h-screen sticky top-0 bg-navy-500 text-white transition-all duration-300 flex flex-col',
-        collapsed ? 'w-[68px]' : 'w-64'
+    <>
+      {/* Mobile hamburger */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-navy-500 text-white shadow-lg"
+        onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label="Toggle sidebar"
+      >
+        {mobileOpen ? <ChevronLeft className="h-5 w-5" /> : <LayoutDashboard className="h-5 w-5" />}
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setMobileOpen(false)} />
       )}
-    >
+
+      <aside
+        className={cn(
+          'h-screen bg-navy-500 text-white transition-all duration-300 flex flex-col z-50',
+          collapsed ? 'w-[68px]' : 'w-64',
+          'fixed md:sticky top-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        )}
+      >
       <div className="flex items-center gap-2 p-4 border-b border-navy-400">
         <div className="w-9 h-9 bg-gold rounded-lg flex items-center justify-center flex-shrink-0">
           <span className="text-navy-900 font-heading font-bold text-sm">EQ</span>
@@ -143,6 +161,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
@@ -157,7 +176,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-2 border-t border-navy-400">
+      <div className="p-2 border-t border-navy-400 hidden md:block">
         <Button
           variant="ghost"
           size="icon"
@@ -168,5 +187,6 @@ export function Sidebar() {
         </Button>
       </div>
     </aside>
+    </>
   );
 }
