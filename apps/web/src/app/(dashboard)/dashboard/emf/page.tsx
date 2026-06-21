@@ -41,6 +41,7 @@ export default function EMFPage() {
     onSuccess: () => {
       toast.success(editId ? 'Component updated' : 'Component added');
       qc.invalidateQueries({ queryKey: ['emf-components', estateId] });
+      qc.refetchQueries({ queryKey: ['emf-components', estateId] });
       closeDialog();
     },
     onError: (err: any) => toast.error(err.message || 'Failed to save'),
