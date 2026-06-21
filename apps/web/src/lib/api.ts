@@ -28,8 +28,11 @@ class ApiClient {
   }
 
   async fetch<T = any>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+    console.log('API Fetch:', { endpoint, isDemoMode: this.isDemoMode, API_URL });
+
     // In demo mode, skip network calls entirely to avoid console errors
     if (this.isDemoMode) {
+      console.log('API Fetch: Blocked by demo mode');
       return null as T;
     }
 
@@ -45,11 +48,15 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
     }
 
+    console.log('API Fetch: Request', { url: `${API_URL}${endpoint}`, headers, options: fetchOptions });
+
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...fetchOptions,
       headers,
       credentials: 'include',
     });
+
+    console.log('API Fetch: Response', { status: response.status, ok: response.ok });
 
     if (response.status === 401) {
       const refreshed = await this.refreshToken();
