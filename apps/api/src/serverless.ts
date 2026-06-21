@@ -61,7 +61,13 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 }
 
 export default async function handler(req: any, res: any) {
-  const app = await bootstrapServer();
-  const instance = app.getHttpAdapter().getInstance();
-  instance(req, res);
+  console.log('Serverless Handler:', { method: req.method, url: req.url, path: req.path });
+  try {
+    const app = await bootstrapServer();
+    const instance = app.getHttpAdapter().getInstance();
+    instance(req, res);
+  } catch (error) {
+    console.error('Serverless Handler Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }

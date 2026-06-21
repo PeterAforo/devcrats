@@ -48,54 +48,20 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true });
 
-        // If already in demo mode (no API configured in production), skip API call
-        if (api.isDemoMode) {
-          const account = DEMO_ACCOUNTS[email.toLowerCase()];
-          if (!account || password !== DEMO_PASSWORD) {
-            set({ isLoading: false });
-            throw new Error('Invalid email or password');
-          }
-          api.setToken(null);
-          set({ user: account, isAuthenticated: true, isLoading: false, isDemoMode: true });
-          return;
-        }
-
         try {
           const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/login', { email, password });
           const { user, accessToken } = res.data;
           api.setToken(accessToken);
           api.setDemoMode(false);
           set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
-        } catch {
-          // Fallback to demo mode if API unavailable
-          const account = DEMO_ACCOUNTS[email.toLowerCase()];
-          if (!account || password !== DEMO_PASSWORD) {
-            set({ isLoading: false });
-            throw new Error('Invalid email or password');
-          }
-          api.setToken(null);
-          api.setDemoMode(true);
-          set({ user: account, isAuthenticated: true, isLoading: false, isDemoMode: true });
+        } catch (err) {
+          set({ isLoading: false });
+          throw err;
         }
       },
 
       register: async (data) => {
         set({ isLoading: true });
-
-        // If already in demo mode, skip API call
-        if (api.isDemoMode) {
-          const newUser: AuthUser = {
-            id: Date.now().toString(),
-            email: data.email,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            role: 'tenant',
-            emailVerified: false,
-            mfaEnabled: false,
-          };
-          set({ user: newUser, isAuthenticated: true, isLoading: false, isDemoMode: true });
-          return;
-        }
 
         try {
           const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/register', {
@@ -105,19 +71,9 @@ export const useAuthStore = create<AuthState>()(
           api.setToken(accessToken);
           api.setDemoMode(false);
           set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
-        } catch {
-          // Demo fallback
-          const newUser: AuthUser = {
-            id: Date.now().toString(),
-            email: data.email,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            role: 'tenant',
-            emailVerified: false,
-            mfaEnabled: false,
-          };
-          api.setDemoMode(true);
-          set({ user: newUser, isAuthenticated: true, isLoading: false, isDemoMode: true });
+        } catch (err) {
+          set({ isLoading: false });
+          throw err;
         }
       },
 
