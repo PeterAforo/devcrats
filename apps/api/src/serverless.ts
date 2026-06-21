@@ -27,7 +27,7 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 
   const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'https://devcrats-api.vercel.app'];
+    : ['http://localhost:3000', 'https://devcrats.vercel.app'];
 
   app.enableCors({
     origin: corsOrigins,
