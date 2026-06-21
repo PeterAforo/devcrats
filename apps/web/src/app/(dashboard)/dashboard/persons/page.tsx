@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, Plus, Search, Phone, Mail, Home, Trash2, Pencil, UserPlus, Building2, Calendar, Globe, Briefcase, Loader2 } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, Home, Trash2, Pencil, UserPlus, Building2, Calendar, Globe, Briefcase, Loader2, User } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ interface Tenant {
   companyName?: string;
   emergencyContact?: string;
   notes?: string;
+  avatarUrl?: string;
 }
 
 interface Landlord {
@@ -86,6 +88,7 @@ export default function PersonsPage() {
         landlordId: t.landlord?.id || '', landlordName: t.landlord?.user ? `${t.landlord.user.firstName} ${t.landlord.user.lastName}` : '',
         tenantType: (t.tenantType || 'single') as TenantType, nationality: t.nationality || 'Ghanaian',
         occupants: t.occupants, companyName: t.companyName,
+        avatarUrl: t.user?.avatarUrl || undefined,
       }))
     : localTenants;
 
@@ -137,9 +140,10 @@ export default function PersonsPage() {
       bank: lForm.bank, status: 'active',
     };
     createLandlordMut.mutate(
-      { firstName: lForm.name.split(' ')[0], lastName: lForm.name.split(' ').slice(1).join(' '), email: lForm.email, phone: lForm.phone, estateId: '', bankName: lForm.bank },
-      { onError: () => setLocalLandlords([l, ...localLandlords]) },
+      { firstName: lForm.name.split(' ')[0], lastName: lForm.name.split(' ').slice(1).join(' ') || lForm.name, email: lForm.email, phone: lForm.phone, estateId: '', bankName: lForm.bank },
+      { onError: () => {} },
     );
+    setLocalLandlords([l, ...localLandlords]);
     setLForm({ name: '', email: '', phone: '', properties: '', bank: '', idType: '', idNumber: '' });
     setShowAddLandlord(false);
   };
@@ -434,13 +438,25 @@ export default function PersonsPage() {
       <Dialog open={!!showTenantDetail} onOpenChange={() => setShowTenantDetail(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{showTenantDetail?.name}</DialogTitle>
-            <DialogDescription>
-              <Badge variant={tenantTypeBadge(showTenantDetail?.tenantType || 'single') as any} className="mr-2">
-                {tenantTypeLabel(showTenantDetail?.tenantType || 'single')}
-              </Badge>
-              Tenant Details
-            </DialogDescription>
+            <div className="flex items-center gap-4">
+              <Avatar className="h-14 w-14">
+                {showTenantDetail?.avatarUrl ? (
+                  <AvatarImage src={showTenantDetail.avatarUrl} alt={showTenantDetail?.name} />
+                ) : null}
+                <AvatarFallback className="bg-navy-500 text-white text-lg">
+                  {showTenantDetail?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || <User className="h-6 w-6" />}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <DialogTitle>{showTenantDetail?.name}</DialogTitle>
+                <DialogDescription>
+                  <Badge variant={tenantTypeBadge(showTenantDetail?.tenantType || 'single') as any} className="mr-2">
+                    {tenantTypeLabel(showTenantDetail?.tenantType || 'single')}
+                  </Badge>
+                  Tenant Details
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           {showTenantDetail && (
             <div className="space-y-4 py-4">
