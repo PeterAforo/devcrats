@@ -9,10 +9,14 @@ export class EmfService {
     const where: any = { deletedAt: null };
     if (estateId) where.estateId = estateId;
 
+    console.log('EMF Service - findAll:', { estateId, where });
+
     const components = await this.prisma.feeComponent.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
+
+    console.log('EMF Service - findAll result:', { count: components.length, components });
 
     return { data: components, total: components.length };
   }
@@ -34,7 +38,9 @@ export class EmfService {
     landlordSplit?: number;
     tenantSplit?: number;
   }) {
-    return this.prisma.feeComponent.create({
+    console.log('EMF Service - create:', { dto });
+
+    const result = await this.prisma.feeComponent.create({
       data: {
         estateId: dto.estateId,
         name: dto.name,
@@ -47,6 +53,9 @@ export class EmfService {
         tenantSplit: dto.tenantSplit ?? 70,
       },
     });
+
+    console.log('EMF Service - create result:', result);
+    return result;
   }
 
   async update(

@@ -29,22 +29,39 @@ export default function EMFPage() {
 
   const { data: apiData, isLoading } = useQuery({
     queryKey: ['emf-components', estateId],
-    queryFn: () => api.get(`/emf/components${estateId ? `?estateId=${estateId}` : ''}`),
+    queryFn: async () => {
+      const url = `/emf/components${estateId ? `?estateId=${estateId}` : ''}`;
+      console.log('EMF Query - Fetching:', { url, estateId });
+      const result = await api.get(url);
+      console.log('EMF Query - Response:', result);
+      return result;
+    },
   });
 
   const feeComponents: any[] = apiData?.data || [];
+  console.log('EMF Render State:', { estateId, apiData, feeComponents, count: feeComponents.length, isLoading });
   const totalMonthly = feeComponents.reduce((sum: number, f: any) => sum + Number(f.amount || 0), 0);
 
   const saveMutation = useMutation({
-    mutationFn: (data: any) =>
-      editId ? api.put(`/emf/components/${editId}`, data) : api.post('/emf/components', { ...data, estateId }),
-    onSuccess: () => {
+    mutationFn: async (data: any) => {
+      const url = editId ? `/emf/components/${editId}` : '/emf/components';
+      const payload = editId ? data : { ...data, estateId };
+      console.log('EMF Save - Request:', { url, payload, editId, estateId });
+      const result = editId ? await api.put(url, data) : await api.post('/emf/components', { ...data, estateId });
+      console.log('EMF Save - Response:', result);
+      return result;
+    },
+    onSuccess: (result) => {
+      console.log('EMF Save - Success:', result);
       toast.success(editId ? 'Component updated' : 'Component added');
       qc.invalidateQueries({ queryKey: ['emf-components', estateId] });
       qc.refetchQueries({ queryKey: ['emf-components', estateId] });
       closeDialog();
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to save'),
+    onError: (err: any) => {
+      console.error('EMF Save - Error:', err);
+      toast.error(err.message || 'Failed to save');
+    },
   });
 
   const deleteMutation = useMutation({
