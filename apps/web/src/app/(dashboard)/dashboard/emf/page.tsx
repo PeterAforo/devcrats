@@ -158,7 +158,12 @@ export default function EMFPage() {
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={closeDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editId ? 'Edit' : 'Add'} Fee Component</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editId ? 'Edit' : 'Add'} Fee Component</DialogTitle>
+            <DialogDescription>
+              {editId ? 'Update the fee component details below.' : 'Add a new fee component to the estate management fee schedule.'}
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2"><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. 24/7 Security Service" /></div>
             <div className="grid grid-cols-2 gap-4">
@@ -197,8 +202,12 @@ export default function EMFPage() {
       {/* Delete Confirm Dialog */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Delete Fee Component?</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">This action cannot be undone. The fee component will be permanently removed.</p>
+          <DialogHeader>
+            <DialogTitle>Delete Fee Component?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The fee component will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
