@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as fs from 'fs';
@@ -6,14 +6,19 @@ import * as path from 'path';
 
 @Injectable()
 export class UploadsService {
+  private readonly logger = new Logger(UploadsService.name);
   private uploadDir: string;
+  private readonly blobToken: string;
+  private readonly isProduction: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
+    this.blobToken = this.configService.get<string>('BLOB_READ_WRITE_TOKEN', '');
+    this.isProduction = this.configService.get('NODE_ENV') === 'production';
     this.uploadDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(this.uploadDir)) {
+    if (!this.isProduction && !fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }
   }
@@ -32,15 +37,24 @@ export class UploadsService {
 
     const ext = path.extname(file.originalname);
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    const filePath = path.join(this.uploadDir, filename);
 
-    fs.writeFileSync(filePath, file.buffer);
+    let fileUrl: string;
+
+    if (this.isProduction && this.blobToken) {
+      // Upload to Vercel Blob in production
+      fileUrl = await this.uploadToBlob(file.buffer, filename, file.mimetype);
+    } else {
+      // Local filesystem in development
+      const filePath = path.join(this.uploadDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+      fileUrl = `/uploads/${filename}`;
+    }
 
     const document = await this.prisma.document.create({
       data: {
         title: file.originalname,
         type: (metadata?.category || 'other'),
-        fileUrl: `/uploads/${filename}`,
+        fileUrl,
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
@@ -50,6 +64,26 @@ export class UploadsService {
     });
 
     return document;
+  }
+
+  private async uploadToBlob(buffer: Buffer, filename: string, contentType: string): Promise<string> {
+    const response = await fetch(`https://blob.vercel-storage.com/${filename}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${this.blobToken}`,
+        'x-content-type': contentType,
+        'x-api-version': '7',
+      },
+      body: new Uint8Array(buffer),
+    });
+
+    if (!response.ok) {
+      this.logger.error('Vercel Blob upload failed', await response.text());
+      throw new BadRequestException('File upload failed');
+    }
+
+    const data = await response.json() as { url: string };
+    return data.url;
   }
 
   async getDocuments(estateId?: string, page = 1, limit = 20) {
