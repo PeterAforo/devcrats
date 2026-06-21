@@ -23,10 +23,7 @@ class ApiClient {
 
   get isDemoMode() {
     if (this._demoModeOverride !== null) return this._demoModeOverride;
-    // Auto-detect: no NEXT_PUBLIC_API_URL configured and running on a non-localhost domain
-    if (typeof window !== 'undefined' && !hasConfiguredApi && !window.location.hostname.includes('localhost')) {
-      return true;
-    }
+    // Demo mode must be explicitly enabled via override
     return false;
   }
 
