@@ -1492,3 +1492,26 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ========================
+// INTEGRATIONS
+// ========================
+
+model Integration {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider    String  @unique
+  category    String  @default("other") // payment, sms, email, maps, ai, custom
+  displayName String  @map("display_name")
+  description String?
+  isActive    Boolean @default(false) @map("is_active")
+  isSandbox   Boolean @default(true) @map("is_sandbox")
+  isBuiltIn   Boolean @default(true) @map("is_built_in")
+  credentials Json    @default("{}") // encrypted key-value pairs
+  config      Json    @default("{}") // non-secret config (callback URLs, sender IDs, etc.)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("integrations")
+}

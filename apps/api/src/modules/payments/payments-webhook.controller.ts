@@ -29,7 +29,7 @@ export class PaymentsWebhookController {
   ) {
     const rawBody = typeof body === 'string' ? body : JSON.stringify(body);
 
-    if (!this.paystackService.validateWebhookSignature(rawBody, signature)) {
+    if (!(await this.paystackService.validateWebhookSignature(rawBody, signature))) {
       this.logger.warn('Invalid Paystack webhook signature');
       return { status: 'invalid_signature' };
     }

@@ -72,11 +72,12 @@ export class PaymentsController {
 
   @Get('payments/gateways')
   @ApiOperation({ summary: 'Get available payment gateways' })
-  getAvailableGateways() {
-    return {
-      paystack: this.paystackService.isConfigured,
-      hubtel: this.hubtelService.isConfigured,
-    };
+  async getAvailableGateways() {
+    const [paystack, hubtel] = await Promise.all([
+      this.paystackService.isConfigured(),
+      this.hubtelService.isConfigured(),
+    ]);
+    return { paystack, hubtel };
   }
 
   @Post('payments/initialize/paystack')

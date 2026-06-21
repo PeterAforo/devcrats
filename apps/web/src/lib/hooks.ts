@@ -341,6 +341,23 @@ export function useToggleIntegration() {
   });
 }
 
+export function useCreateIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { provider: string; category: string; displayName: string; description?: string; credentials?: Record<string, string>; config?: Record<string, string> }) =>
+      api.post('/integrations', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
+
+export function useDeleteIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: string) => api.delete(`/integrations/${provider}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
+
 // ─── DOCUMENTS / UPLOADS ─────────────────────────────────
 export function useDocuments(estateId?: string, page = 1) {
   return useQuery({

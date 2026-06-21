@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IntegrationsService } from '../../integrations/integrations.service';
 
 interface EmailOptions {
   to: string | string[];
@@ -12,37 +13,46 @@ interface EmailOptions {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly apiKey: string;
-  private readonly fromEmail: string;
-  private readonly fromName: string;
   private readonly baseUrl = 'https://api.resend.com';
 
-  constructor(private readonly config: ConfigService) {
-    this.apiKey = this.config.get<string>('RESEND_API_KEY', '');
-    this.fromEmail = this.config.get<string>('EMAIL_FROM', 'noreply@estateiq.app');
-    this.fromName = this.config.get<string>('EMAIL_FROM_NAME', 'EstateIQ');
+  constructor(
+    private readonly config: ConfigService,
+    private readonly integrationsService: IntegrationsService,
+  ) {}
+
+  private async getKeys() {
+    const dbCreds = await this.integrationsService.getCredentials('resend');
+    const dbConf = await this.integrationsService.getConfig('resend');
+    return {
+      apiKey: dbCreds.apiKey || this.config.get<string>('RESEND_API_KEY', ''),
+      fromEmail: dbConf.fromEmail || this.config.get<string>('EMAIL_FROM', 'noreply@estateiq.app'),
+      fromName: dbConf.fromName || this.config.get<string>('EMAIL_FROM_NAME', 'EstateIQ'),
+    };
   }
 
-  get isConfigured(): boolean {
-    return !!this.apiKey && this.apiKey.startsWith('re_');
+  async isConfigured(): Promise<boolean> {
+    const { apiKey } = await this.getKeys();
+    return !!apiKey && apiKey.startsWith('re_');
   }
 
   async send(options: EmailOptions): Promise<{ id: string } | null> {
-    if (!this.isConfigured) {
+    const configured = await this.isConfigured();
+    if (!configured) {
       this.logger.warn('Email service not configured — skipping send');
       this.logger.debug(`Would send email to ${options.to}: ${options.subject}`);
       return null;
     }
 
+    const keys = await this.getKeys();
     try {
       const response = await fetch(`${this.baseUrl}/emails`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${keys.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: options.from || `${this.fromName} <${this.fromEmail}>`,
+          from: options.from || `${keys.fromName} <${keys.fromEmail}>`,
           to: Array.isArray(options.to) ? options.to : [options.to],
           subject: options.subject,
           html: options.html,

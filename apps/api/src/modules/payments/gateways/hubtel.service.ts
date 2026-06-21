@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IntegrationsService } from '../../integrations/integrations.service';
 
 export interface HubtelPaymentResponse {
   ResponseCode: string;
@@ -32,23 +33,30 @@ export interface HubtelCallbackPayload {
 @Injectable()
 export class HubtelService {
   private readonly logger = new Logger(HubtelService.name);
-  private readonly clientId: string;
-  private readonly clientSecret: string;
-  private readonly merchantAccountNumber: string;
   private readonly baseUrl = 'https://payproxyapi.hubtel.com/items/initiate';
 
-  constructor(private readonly config: ConfigService) {
-    this.clientId = this.config.get<string>('HUBTEL_CLIENT_ID', '');
-    this.clientSecret = this.config.get<string>('HUBTEL_CLIENT_SECRET', '');
-    this.merchantAccountNumber = this.config.get<string>('HUBTEL_MERCHANT_ACCOUNT', '');
+  constructor(
+    private readonly config: ConfigService,
+    private readonly integrationsService: IntegrationsService,
+  ) {}
+
+  private async getKeys() {
+    const dbCreds = await this.integrationsService.getCredentials('hubtel');
+    const dbConf = await this.integrationsService.getConfig('hubtel');
+    return {
+      clientId: dbCreds.clientId || this.config.get<string>('HUBTEL_CLIENT_ID', ''),
+      clientSecret: dbCreds.clientSecret || this.config.get<string>('HUBTEL_CLIENT_SECRET', ''),
+      merchantAccount: dbConf.merchantAccount || this.config.get<string>('HUBTEL_MERCHANT_ACCOUNT', ''),
+    };
   }
 
-  get isConfigured(): boolean {
-    return !!this.clientId && !!this.clientSecret && !!this.merchantAccountNumber;
+  async isConfigured(): Promise<boolean> {
+    const keys = await this.getKeys();
+    return !!keys.clientId && !!keys.clientSecret && !!keys.merchantAccount;
   }
 
-  private getAuthHeader(): string {
-    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+  private getAuthHeader(clientId: string, clientSecret: string): string {
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     return `Basic ${credentials}`;
   }
 
@@ -63,7 +71,8 @@ export class HubtelService {
     returnUrl: string;
     cancellationUrl: string;
   }): Promise<HubtelPaymentResponse> {
-    if (!this.isConfigured) {
+    const keys = await this.getKeys();
+    if (!keys.clientId || !keys.clientSecret) {
       throw new BadRequestException('Hubtel is not configured');
     }
 
@@ -73,7 +82,7 @@ export class HubtelService {
       callbackUrl: params.callbackUrl,
       returnUrl: params.returnUrl,
       cancellationUrl: params.cancellationUrl,
-      merchantAccountNumber: this.merchantAccountNumber,
+      merchantAccountNumber: keys.merchantAccount,
       clientReference: params.clientReference,
       customerName: params.customerName || '',
       customerEmail: params.customerEmail || '',
@@ -83,7 +92,7 @@ export class HubtelService {
     const response = await fetch(this.baseUrl, {
       method: 'POST',
       headers: {
-        Authorization: this.getAuthHeader(),
+        Authorization: this.getAuthHeader(keys.clientId, keys.clientSecret),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -99,7 +108,8 @@ export class HubtelService {
   }
 
   async checkPaymentStatus(clientReference: string): Promise<any> {
-    if (!this.isConfigured) {
+    const keys = await this.getKeys();
+    if (!keys.clientId || !keys.clientSecret) {
       throw new BadRequestException('Hubtel is not configured');
     }
 
@@ -107,7 +117,7 @@ export class HubtelService {
       `https://payproxyapi.hubtel.com/items/${clientReference}/status`,
       {
         headers: {
-          Authorization: this.getAuthHeader(),
+          Authorization: this.getAuthHeader(keys.clientId, keys.clientSecret),
         },
       },
     );

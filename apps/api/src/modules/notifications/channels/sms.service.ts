@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IntegrationsService } from '../../integrations/integrations.service';
 
 interface SmsOptions {
   to: string | string[];
@@ -10,21 +11,30 @@ interface SmsOptions {
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
-  private readonly apiKey: string;
-  private readonly senderId: string;
   private readonly baseUrl = 'https://apps.mnotify.net/smsapi';
 
-  constructor(private readonly config: ConfigService) {
-    this.apiKey = this.config.get<string>('MNOTIFY_API_KEY', '');
-    this.senderId = this.config.get<string>('MNOTIFY_SENDER_ID', 'EstateIQ');
+  constructor(
+    private readonly config: ConfigService,
+    private readonly integrationsService: IntegrationsService,
+  ) {}
+
+  private async getKeys() {
+    const dbCreds = await this.integrationsService.getCredentials('mnotify');
+    const dbConf = await this.integrationsService.getConfig('mnotify');
+    return {
+      apiKey: dbCreds.apiKey || this.config.get<string>('MNOTIFY_API_KEY', ''),
+      senderId: dbConf.senderId || this.config.get<string>('MNOTIFY_SENDER_ID', 'EstateIQ'),
+    };
   }
 
-  get isConfigured(): boolean {
-    return !!this.apiKey;
+  async isConfigured(): Promise<boolean> {
+    const { apiKey } = await this.getKeys();
+    return !!apiKey;
   }
 
   async send(options: SmsOptions): Promise<any> {
-    if (!this.isConfigured) {
+    const keys = await this.getKeys();
+    if (!keys.apiKey) {
       this.logger.warn('SMS service not configured — skipping send');
       this.logger.debug(`Would send SMS to ${options.to}: ${options.message}`);
       return null;
@@ -41,10 +51,10 @@ export class SmsService {
 
     try {
       const params = new URLSearchParams({
-        key: this.apiKey,
+        key: keys.apiKey,
         to: cleaned.join(','),
         msg: options.message,
-        sender_id: options.senderId || this.senderId,
+        sender_id: options.senderId || keys.senderId,
       });
 
       const response = await fetch(`${this.baseUrl}?${params.toString()}`);
