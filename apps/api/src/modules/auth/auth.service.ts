@@ -218,6 +218,61 @@ export class AuthService {
     });
   }
 
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    // Always return success to prevent email enumeration
+    if (!user) return { message: 'If the email exists, a reset link has been sent' };
+
+    // Generate reset token (expires in 1 hour)
+    const resetToken = uuidv4();
+    const resetExpiry = new Date(Date.now() + 60 * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpiry: resetExpiry,
+      },
+    });
+
+    return { message: 'If the email exists, a reset link has been sent', resetToken, firstName: user.firstName };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: { gte: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    // Revoke all sessions
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return { message: 'Password reset successfully' };
+  }
+
   private async generateTokens(userId: string, email: string, role: string, estateId?: string | null) {
     const payload = { sub: userId, email, role, estateId };
 

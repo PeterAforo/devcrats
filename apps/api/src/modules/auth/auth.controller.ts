@@ -17,11 +17,15 @@ import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { EmailService } from '../notifications/channels/email.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -128,5 +132,29 @@ export class AuthController {
     @Param('id') sessionId: string,
   ) {
     return this.authService.revokeSession(userId, sessionId);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset email' })
+  async forgotPassword(@Body() body: { email: string }) {
+    const result = await this.authService.forgotPassword(body.email);
+
+    // Send reset email if token was generated
+    if (result.resetToken && result.firstName) {
+      await this.emailService.sendPasswordReset(body.email, result.resetToken, result.firstName);
+    }
+
+    // Don't expose resetToken to client
+    return { message: result.message };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password using token' })
+  async resetPassword(@Body() body: { token: string; password: string }) {
+    return this.authService.resetPassword(body.token, body.password);
   }
 }

@@ -498,3 +498,34 @@ export function useCreateReceipt() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['receipts'] }),
   });
 }
+
+// ─── PAYMENT GATEWAYS ────────────────────────────────────────
+export function useAvailableGateways() {
+  return useQuery({
+    queryKey: ['payment-gateways'],
+    queryFn: () => api.get('/payments/gateways'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInitPaystack() {
+  return useMutation({
+    mutationFn: (data: { invoiceId: string; email: string; amount: number; callbackUrl?: string }) =>
+      api.post('/payments/initialize/paystack', data),
+  });
+}
+
+export function useInitHubtel() {
+  return useMutation({
+    mutationFn: (data: { invoiceId: string; amount: number; description?: string; customerName?: string; customerEmail?: string; customerPhone?: string }) =>
+      api.post('/payments/initialize/hubtel', data),
+  });
+}
+
+export function useVerifyPayment(reference: string) {
+  return useQuery({
+    queryKey: ['payment-verify', reference],
+    queryFn: () => api.get(`/payments/verify/${reference}`),
+    enabled: !!reference,
+  });
+}

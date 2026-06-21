@@ -115,6 +115,37 @@ export class PaymentsService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
+  async createPendingPayment(params: {
+    invoiceId: string;
+    amount: number;
+    method: string;
+    reference: string;
+    gateway: string;
+  }) {
+    return this.prisma.payment.create({
+      data: {
+        invoiceId: params.invoiceId,
+        amount: params.amount,
+        method: params.method as any,
+        reference: params.reference,
+        gateway: params.gateway,
+        status: 'pending',
+      },
+    });
+  }
+
+  async getPaymentByReference(reference: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { reference },
+      include: {
+        invoice: { include: { unit: { include: { building: true } } } },
+        receipt: true,
+      },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    return payment;
+  }
+
   async getPaymentStats(estateId: string) {
     const [totalRevenue, pendingInvoices, overdueInvoices] = await Promise.all([
       this.prisma.payment.aggregate({

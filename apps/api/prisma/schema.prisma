@@ -54,6 +54,8 @@ model User {
   mfaSecret     String?   @map("mfa_secret")
   isActive      Boolean   @default(true) @map("is_active")
   lastLoginAt   DateTime? @map("last_login_at")
+  resetToken    String?   @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
   estateId      String?   @map("estate_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Mail, CheckCircle2 } from 'lucide-react';
+import api from '@/lib/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -18,12 +19,17 @@ export default function ForgotPasswordPage() {
     if (!email) return;
 
     setIsLoading(true);
-    // Simulate sending reset email
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await api.post('/auth/forgot-password', { email });
       setSent(true);
       toast.success('Reset link sent! Check your email.');
-    }, 1500);
+    } catch {
+      // Still show success to prevent email enumeration
+      setSent(true);
+      toast.success('If the email exists, a reset link has been sent.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
