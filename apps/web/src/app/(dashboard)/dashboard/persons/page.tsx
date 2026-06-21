@@ -69,6 +69,8 @@ export default function PersonsPage() {
   const [search, setSearch] = useState('');
   const [showAddTenant, setShowAddTenant] = useState(false);
   const [showAddLandlord, setShowAddLandlord] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', unit: '', estate: '', leaseEnd: '', nationality: '' });
   const [showTenantDetail, setShowTenantDetail] = useState<Tenant | null>(null);
   const [showLandlordDetail, setShowLandlordDetail] = useState<Landlord | null>(null);
 
@@ -148,7 +150,24 @@ export default function PersonsPage() {
     setShowAddLandlord(false);
   };
 
-  const handleDeleteTenant = (id: string) => { setLocalTenants(localTenants.filter((t) => t.id !== id)); setShowTenantDetail(null); };
+  const handleDeleteTenant = (id: string) => {
+    if (!confirm('Are you sure you want to remove this tenant?')) return;
+    setLocalTenants(localTenants.filter((t) => t.id !== id));
+    setShowTenantDetail(null);
+  };
+
+  const handleEditTenant = (tenant: Tenant) => {
+    setEditForm({ name: tenant.name, email: tenant.email, phone: tenant.phone, unit: tenant.unit, estate: tenant.estate, leaseEnd: tenant.leaseEnd, nationality: tenant.nationality });
+    setEditingTenant(tenant);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingTenant) return;
+    const updated = tenants.map((t) => t.id === editingTenant.id ? { ...t, ...editForm } : t);
+    setLocalTenants(updated as Tenant[]);
+    setEditingTenant(null);
+    setShowTenantDetail(null);
+  };
   const handleDeleteLandlord = (id: string) => { setLocalLandlords(localLandlords.filter((l) => l.id !== id)); setShowLandlordDetail(null); };
 
   const tenantTypeLabel = (t: TenantType) => t === 'family' ? 'Family' : t === 'company' ? 'Company' : 'Single Person';
@@ -162,7 +181,6 @@ export default function PersonsPage() {
           <p className="text-muted-foreground mt-1">Manage property owners and their tenants</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" size="sm" onClick={() => setShowAddLandlord(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span> Landlord</Button>
           <Button className="gap-2" size="sm" onClick={() => setShowAddTenant(true)}><UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">Register</span> Tenant</Button>
         </div>
       </div>
@@ -484,7 +502,8 @@ export default function PersonsPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="destructive" size="sm" onClick={() => showTenantDetail && handleDeleteTenant(showTenantDetail.id)}>Remove Tenant</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => showTenantDetail && handleEditTenant(showTenantDetail)}><Pencil className="h-3 w-3" /> Edit</Button>
+            <Button variant="destructive" size="sm" className="gap-1" onClick={() => showTenantDetail && handleDeleteTenant(showTenantDetail.id)}><Trash2 className="h-3 w-3" /> Remove</Button>
             <Button variant="outline" onClick={() => setShowTenantDetail(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
@@ -532,6 +551,35 @@ export default function PersonsPage() {
           <DialogFooter>
             <Button variant="destructive" size="sm" onClick={() => showLandlordDetail && handleDeleteLandlord(showLandlordDetail.id)}>Remove Landlord</Button>
             <Button variant="outline" onClick={() => setShowLandlordDetail(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT TENANT DIALOG ─── */}
+      <Dialog open={!!editingTenant} onOpenChange={() => setEditingTenant(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4" /> Edit Tenant</DialogTitle>
+            <DialogDescription>Update tenant details below.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Full Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Phone</Label><Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Email</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Unit</Label><Input value={editForm.unit} onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Estate</Label><Input value={editForm.estate} onChange={(e) => setEditForm({ ...editForm, estate: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Lease End</Label><Input type="date" value={editForm.leaseEnd} onChange={(e) => setEditForm({ ...editForm, leaseEnd: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Nationality</Label><Input value={editForm.nationality} onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTenant(null)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={!editForm.name}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -26,7 +26,7 @@ export class EstatesService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { buildings: true, users: true } } },
+        include: { clusters: true, _count: { select: { buildings: true, users: true } } },
       }),
       this.prisma.estate.count({ where }),
     ]);
@@ -47,7 +47,8 @@ export class EstatesService {
     const estate = await this.prisma.estate.findUnique({
       where: { id },
       include: {
-        buildings: { include: { units: true } },
+        clusters: true,
+        buildings: { include: { units: true, cluster: true } },
         amenities: { include: { amenity: true } },
         _count: { select: { users: true, buildings: true } },
       },

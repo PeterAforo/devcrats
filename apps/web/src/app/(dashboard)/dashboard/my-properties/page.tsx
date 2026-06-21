@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth-store';
+import { useEstates } from '@/lib/hooks';
 
 const demoProperties = [
   {
@@ -105,9 +106,17 @@ export default function MyPropertiesPage() {
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
   const [detailProperty, setDetailProperty] = useState<typeof demoProperties[0] | null>(null);
-  const [propForm, setPropForm] = useState({ houseNumber: '', building: '', estate: '', city: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
+  const [propForm, setPropForm] = useState({ houseNumber: '', estateId: '', clusterId: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
   const [localProperties, setLocalProperties] = useState(demoProperties);
   const properties = localProperties;
+
+  const { data: estatesData } = useEstates();
+  const estates: any[] = estatesData?.data || [
+    { id: 'e1', name: 'Devtraco Courts Estate', city: 'Tema', clusters: [{ id: 'c1', name: 'Bellavilla' }, { id: 'c2', name: 'Rosavilla' }] },
+    { id: 'e2', name: 'East Legon Hills', city: 'Accra', clusters: [{ id: 'c3', name: 'Phase 1' }, { id: 'c4', name: 'Phase 2' }] },
+  ];
+  const selectedEstate = estates.find((e: any) => e.id === propForm.estateId);
+  const clusters: any[] = selectedEstate?.clusters || [];
 
   const totalRentalIncome = properties
     .filter((p) => p.occupancyType === 'rented' && p.rentAmount)
@@ -258,12 +267,31 @@ export default function MyPropertiesPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>House Number *</Label><Input placeholder="e.g. 00AC12" value={propForm.houseNumber} onChange={(e) => setPropForm({ ...propForm, houseNumber: e.target.value })} /></div>
-              <div><Label>Building / Block</Label><Input placeholder="e.g. Block A" value={propForm.building} onChange={(e) => setPropForm({ ...propForm, building: e.target.value })} /></div>
+              <div>
+                <Label>Estate *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.estateId} onChange={(e) => setPropForm({ ...propForm, estateId: e.target.value, clusterId: '' })}>
+                  <option value="">Select Estate...</option>
+                  {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>City</Label>
+                <Input value={selectedEstate?.city || ''} disabled className="opacity-60" />
+                <p className="text-xs text-muted-foreground mt-0.5">Auto-derived from estate</p>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Estate *</Label><Input placeholder="e.g. East Legon Hills" value={propForm.estate} onChange={(e) => setPropForm({ ...propForm, estate: e.target.value })} /></div>
-              <div><Label>City</Label><Input placeholder="e.g. Accra" value={propForm.city} onChange={(e) => setPropForm({ ...propForm, city: e.target.value })} /></div>
+              <div>
+                <Label>Block / Cluster *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.clusterId} onChange={(e) => setPropForm({ ...propForm, clusterId: e.target.value })} disabled={!propForm.estateId}>
+                  <option value="">{propForm.estateId ? 'Select Block/Cluster...' : 'Select estate first'}</option>
+                  {clusters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>House / Unit Number *</Label>
+                <Input placeholder="e.g. 00AC12" value={propForm.houseNumber} onChange={(e) => setPropForm({ ...propForm, houseNumber: e.target.value })} />
+              </div>
             </div>
             <div className="grid grid-cols-4 gap-4">
               <div><Label>Bedrooms</Label><Input type="number" value={propForm.bedrooms} onChange={(e) => setPropForm({ ...propForm, bedrooms: e.target.value })} /></div>
@@ -281,7 +309,8 @@ export default function MyPropertiesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddProperty(false)}>Cancel</Button>
-            <Button className="bg-gold hover:bg-gold/90 text-navy-900" disabled={!propForm.houseNumber || !propForm.estate} onClick={() => {
+            <Button className="bg-gold hover:bg-gold/90 text-navy-900" disabled={!propForm.houseNumber || !propForm.estateId} onClick={() => {
+              const cluster = clusters.find((c: any) => c.id === propForm.clusterId);
               const newProp = {
                 id: 'P' + Date.now(),
                 occupancyType: propForm.occupancyType,
@@ -295,16 +324,16 @@ export default function MyPropertiesPage() {
                   sizeSqft: Number(propForm.sizeSqft) || 0,
                   status: 'vacant' as const,
                   building: {
-                    name: propForm.building || 'Main',
-                    estate: { name: propForm.estate, address: '', city: propForm.city || '' },
-                    cluster: null,
+                    name: cluster?.name || 'Main',
+                    estate: { name: selectedEstate?.name || '', address: selectedEstate?.address || '', city: selectedEstate?.city || '' },
+                    cluster: cluster ? { name: cluster.name } : null,
                   },
                 },
                 tenant: null,
                 rentAmount: null,
               };
               setLocalProperties([newProp, ...localProperties]);
-              setPropForm({ houseNumber: '', building: '', estate: '', city: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
+              setPropForm({ houseNumber: '', estateId: '', clusterId: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
               setShowAddProperty(false);
             }}>
               Add Property

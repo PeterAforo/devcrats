@@ -123,7 +123,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Update current user profile' })
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body() body: { firstName?: string; lastName?: string; phone?: string },
+    @Body() body: { firstName?: string; lastName?: string; phone?: string; avatarUrl?: string },
   ) {
     return this.authService.updateProfile(userId, body);
   }

@@ -303,11 +303,12 @@ export class AuthService {
     });
   }
 
-  async updateProfile(userId: string, dto: { firstName?: string; lastName?: string; phone?: string }) {
+  async updateProfile(userId: string, dto: { firstName?: string; lastName?: string; phone?: string; avatarUrl?: string }) {
     const data: any = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.avatarUrl !== undefined) data.avatarUrl = dto.avatarUrl;
 
     const user = await this.prisma.user.update({
       where: { id: userId },
