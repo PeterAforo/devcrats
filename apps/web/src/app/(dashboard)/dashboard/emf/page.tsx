@@ -40,7 +40,7 @@ export default function EMFPage() {
       editId ? api.put(`/emf/components/${editId}`, data) : api.post('/emf/components', { ...data, estateId }),
     onSuccess: () => {
       toast.success(editId ? 'Component updated' : 'Component added');
-      qc.invalidateQueries({ queryKey: ['emf-components'] });
+      qc.invalidateQueries({ queryKey: ['emf-components', estateId] });
       closeDialog();
     },
     onError: (err: any) => toast.error(err.message || 'Failed to save'),
@@ -50,7 +50,7 @@ export default function EMFPage() {
     mutationFn: (id: string) => api.delete(`/emf/components/${id}`),
     onSuccess: () => {
       toast.success('Component deleted');
-      qc.invalidateQueries({ queryKey: ['emf-components'] });
+      qc.invalidateQueries({ queryKey: ['emf-components', estateId] });
       setDeleteId(null);
     },
     onError: (err: any) => toast.error(err.message || 'Failed to delete'),
