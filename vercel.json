@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "turbo run build",
+  "installCommand": "pnpm install",
+  "framework": null,
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
+}
