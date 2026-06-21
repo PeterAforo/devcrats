@@ -1,9 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-
-// Auto-detect if API is unreachable: no NEXT_PUBLIC_API_URL set + running on a non-localhost domain
-const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
 const hasConfiguredApi = !!process.env.NEXT_PUBLIC_API_URL;
-const shouldAutoDemoMode = isProduction && !hasConfiguredApi;
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -11,7 +7,7 @@ interface FetchOptions extends RequestInit {
 
 class ApiClient {
   private accessToken: string | null = null;
-  private _demoMode = shouldAutoDemoMode;
+  private _demoModeOverride: boolean | null = null;
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -22,16 +18,21 @@ class ApiClient {
   }
 
   setDemoMode(demo: boolean) {
-    this._demoMode = demo;
+    this._demoModeOverride = demo;
   }
 
   get isDemoMode() {
-    return this._demoMode;
+    if (this._demoModeOverride !== null) return this._demoModeOverride;
+    // Auto-detect: no NEXT_PUBLIC_API_URL configured and running on a non-localhost domain
+    if (typeof window !== 'undefined' && !hasConfiguredApi && !window.location.hostname.includes('localhost')) {
+      return true;
+    }
+    return false;
   }
 
   async fetch<T = any>(endpoint: string, options: FetchOptions = {}): Promise<T> {
     // In demo mode, skip network calls entirely to avoid console errors
-    if (this._demoMode) {
+    if (this.isDemoMode) {
       return null as T;
     }
 
