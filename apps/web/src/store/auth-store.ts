@@ -47,6 +47,19 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         set({ isLoading: true });
+
+        // If already in demo mode (no API configured in production), skip API call
+        if (api.isDemoMode) {
+          const account = DEMO_ACCOUNTS[email.toLowerCase()];
+          if (!account || password !== DEMO_PASSWORD) {
+            set({ isLoading: false });
+            throw new Error('Invalid email or password');
+          }
+          api.setToken(null);
+          set({ user: account, isAuthenticated: true, isLoading: false, isDemoMode: true });
+          return;
+        }
+
         try {
           const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/login', { email, password });
           const { user, accessToken } = res.data;
@@ -68,6 +81,22 @@ export const useAuthStore = create<AuthState>()(
 
       register: async (data) => {
         set({ isLoading: true });
+
+        // If already in demo mode, skip API call
+        if (api.isDemoMode) {
+          const newUser: AuthUser = {
+            id: Date.now().toString(),
+            email: data.email,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            role: 'tenant',
+            emailVerified: false,
+            mfaEnabled: false,
+          };
+          set({ user: newUser, isAuthenticated: true, isLoading: false, isDemoMode: true });
+          return;
+        }
+
         try {
           const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/register', {
             ...data,
@@ -106,6 +135,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       refreshAuth: async () => {
+        if (api.isDemoMode) {
+          set({ isLoading: false });
+          return;
+        }
         try {
           const res = await api.post<{ data: { accessToken: string } }>('/auth/refresh');
           api.setToken(res.data.accessToken);

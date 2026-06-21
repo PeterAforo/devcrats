@@ -15,6 +15,8 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
+import { EmfModule } from './modules/emf/emf.module';
+import { StaffModule } from './modules/staff/staff.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -35,6 +37,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     DashboardModule,
     UploadsModule,
     ReceiptsModule,
+    EmfModule,
+    StaffModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

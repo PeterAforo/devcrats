@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Wrench, Plus, Search, Clock, CheckCircle2, AlertTriangle, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Wrench, Plus, Search, Clock, CheckCircle2, AlertTriangle, Pencil, Trash2, Loader2, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useMaintenanceRequests, useCreateMaintenanceRequest, useDeleteMaintenanceRequest } from '@/lib/hooks';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api from '@/lib/api';
+import { useAuthStore } from '@/store/auth-store';
 
 interface ServiceRequest {
   id: string;
@@ -42,6 +47,18 @@ export default function MaintenancePage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showDetail, setShowDetail] = useState<ServiceRequest | null>(null);
   const [form, setForm] = useState({ title: '', unit: '', category: 'Plumbing', priority: 'normal', tenant: '', description: '' });
+  const [assignTo, setAssignTo] = useState('');
+  const [responseText, setResponseText] = useState('');
+
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const estateId = user?.estateId || '';
+
+  const { data: staffData } = useQuery({
+    queryKey: ['staff', estateId],
+    queryFn: () => api.get(`/staff${estateId ? `?estateId=${estateId}` : ''}`),
+  });
+  const staffList: any[] = staffData?.data || [];
 
   const { data: apiData } = useMaintenanceRequests();
   const createRequest = useCreateMaintenanceRequest();
@@ -95,7 +112,18 @@ export default function MaintenancePage() {
     setShowDetail(null);
   };
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status, assignedTo }: { id: string; status: string; assignedTo?: string }) =>
+      api.put(`/maintenance/${id}/status`, { status, assignedTo }),
+    onSuccess: () => {
+      toast.success('Status updated');
+      qc.invalidateQueries({ queryKey: ['maintenance'] });
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to update'),
+  });
+
   const handleStatusChange = (id: string, newStatus: string) => {
+    statusMutation.mutate({ id, status: newStatus, assignedTo: assignTo || undefined });
     setLocalRequests(localRequests.map((r) => r.id === id ? { ...r, status: newStatus } : r));
     if (showDetail?.id === id) setShowDetail({ ...showDetail, status: newStatus });
   };
@@ -219,6 +247,29 @@ export default function MaintenancePage() {
                 <div><p className="text-muted-foreground">Status</p><p className="font-medium capitalize">{showDetail.status.replace('_', ' ')}</p></div>
               </div>
               {showDetail.description && <div className="text-sm"><p className="text-muted-foreground">Description</p><p>{showDetail.description}</p></div>}
+
+              {/* Assign to staff */}
+              <div className="space-y-2">
+                <Label className="text-sm">Assign to Staff / Vendor</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={assignTo}
+                  onChange={(e) => {
+                    setAssignTo(e.target.value);
+                    if (e.target.value) {
+                      statusMutation.mutate({ id: showDetail.id, status: 'assigned', assignedTo: e.target.value });
+                    }
+                  }}
+                >
+                  <option value="">— Select —</option>
+                  {staffList.map((s: any) => (
+                    <option key={s.id} value={`${s.user?.firstName || ''} ${s.user?.lastName || ''}`}>
+                      {s.user?.firstName} {s.user?.lastName} ({(s.role || '').replace(/_/g, ' ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <Label className="text-xs text-muted-foreground self-center">Update status:</Label>
                 {['submitted', 'assigned', 'in_progress', 'completed'].map((s) => (
@@ -226,6 +277,17 @@ export default function MaintenancePage() {
                     {s.replace('_', ' ')}
                   </Button>
                 ))}
+              </div>
+
+              {/* Response / Notes */}
+              <div className="space-y-2 border-t pt-3">
+                <Label className="text-sm">Add Response / Note</Label>
+                <div className="flex gap-2">
+                  <Textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} placeholder="Add a note or response..." className="flex-1" />
+                  <Button size="icon" className="h-10 w-10 self-end" disabled={!responseText.trim()} onClick={() => { toast.success('Note added'); setResponseText(''); }}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}

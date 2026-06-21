@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquareWarning, Plus, Search, Trash2, Loader2 } from 'lucide-react';
+import { MessageSquareWarning, Plus, Search, Trash2, Loader2, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useComplaints, useCreateComplaint } from '@/lib/hooks';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api from '@/lib/api';
 
 interface Complaint {
   id: string;
@@ -40,6 +44,8 @@ export default function ComplaintsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showDetail, setShowDetail] = useState<Complaint | null>(null);
   const [form, setForm] = useState({ title: '', category: 'Noise', urgency: 'medium', reporter: '', description: '' });
+  const [responseText, setResponseText] = useState('');
+  const qc = useQueryClient();
 
   const { data: apiData } = useComplaints();
   const createComplaint = useCreateComplaint();
@@ -81,11 +87,32 @@ export default function ComplaintsPage() {
   };
 
   const handleDelete = (id: string) => {
+    deleteMutation.mutate(id);
     setLocalComplaints(localComplaints.filter((c) => c.id !== id));
-    setShowDetail(null);
   };
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status, resolution }: { id: string; status: string; resolution?: string }) =>
+      api.put(`/complaints/${id}/status`, { status, resolution }),
+    onSuccess: () => { toast.success('Status updated'); qc.invalidateQueries({ queryKey: ['complaints'] }); },
+    onError: (e: any) => toast.error(e.message || 'Failed'),
+  });
+
+  const addUpdateMutation = useMutation({
+    mutationFn: ({ id, message }: { id: string; message: string }) =>
+      api.post(`/complaints/${id}/updates`, { message }),
+    onSuccess: () => { toast.success('Response added'); setResponseText(''); qc.invalidateQueries({ queryKey: ['complaints'] }); },
+    onError: (e: any) => toast.error(e.message || 'Failed'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/complaints/${id}`),
+    onSuccess: () => { toast.success('Complaint deleted'); qc.invalidateQueries({ queryKey: ['complaints'] }); setShowDetail(null); },
+    onError: (e: any) => toast.error(e.message || 'Failed'),
+  });
+
   const handleStatusChange = (id: string, newStatus: string) => {
+    statusMutation.mutate({ id, status: newStatus });
     setLocalComplaints(localComplaints.map((c) => c.id === id ? { ...c, status: newStatus } : c));
     if (showDetail?.id === id) setShowDetail({ ...showDetail, status: newStatus });
   };
@@ -199,6 +226,17 @@ export default function ComplaintsPage() {
                     {s.replace('_', ' ')}
                   </Button>
                 ))}
+              </div>
+
+              {/* Response / Notes */}
+              <div className="space-y-2 border-t pt-3">
+                <Label className="text-sm">Add Response / Note</Label>
+                <div className="flex gap-2">
+                  <Textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} placeholder="Respond to this complaint..." className="flex-1" />
+                  <Button size="icon" className="h-10 w-10 self-end" disabled={!responseText.trim() || addUpdateMutation.isPending} onClick={() => addUpdateMutation.mutate({ id: showDetail.id, message: responseText })}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}

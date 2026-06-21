@@ -48,6 +48,7 @@ export default function VisitorsPage() {
   const [showDetail, setShowDetail] = useState<Visitor | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', address: '', nationalId: '', host: '', purpose: 'Personal Visit', vehicle: '' });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [maximizedPhoto, setMaximizedPhoto] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: apiData } = useVisitorInvites();
@@ -169,7 +170,10 @@ export default function VisitorsPage() {
                 return (
                   <TableRow key={v.id} className="cursor-pointer" onClick={() => setShowDetail(v)}>
                     <TableCell>
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div
+                        className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-gold transition-all"
+                        onClick={(e) => { e.stopPropagation(); if (v.photoUrl) setMaximizedPhoto({ url: v.photoUrl, name: v.name }); }}
+                      >
                         {v.photoUrl ? (
                           <img src={v.photoUrl} alt={v.name} className="w-full h-full object-cover" />
                         ) : (
@@ -271,7 +275,10 @@ export default function VisitorsPage() {
         <DialogContent>
           <DialogHeader>
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+              <div
+                className="w-14 h-14 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-gold transition-all"
+                onClick={() => { if (showDetail?.photoUrl) setMaximizedPhoto({ url: showDetail.photoUrl, name: showDetail.name }); }}
+              >
                 {showDetail?.photoUrl ? (
                   <img src={showDetail.photoUrl} alt={showDetail.name} className="w-full h-full object-cover" />
                 ) : (
@@ -310,6 +317,20 @@ export default function VisitorsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetail(null)}>Close</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Maximize Dialog */}
+      <Dialog open={!!maximizedPhoto} onOpenChange={() => setMaximizedPhoto(null)}>
+        <DialogContent className="max-w-lg p-2">
+          <DialogHeader className="p-2">
+            <DialogTitle>{maximizedPhoto?.name}</DialogTitle>
+          </DialogHeader>
+          {maximizedPhoto && (
+            <div className="flex items-center justify-center p-2">
+              <img src={maximizedPhoto.url} alt={maximizedPhoto.name} className="max-w-full max-h-[70vh] rounded-lg object-contain" />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

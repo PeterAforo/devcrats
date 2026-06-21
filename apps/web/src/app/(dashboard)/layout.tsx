@@ -7,8 +7,15 @@ import { AvatarUploadPrompt } from '@/components/avatar-upload-prompt';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, isDemoMode } = useAuthStore();
+  const { user, isDemoMode, refreshAuth } = useAuthStore();
   const [showAvatarPrompt, setShowAvatarPrompt] = useState(false);
+
+  useEffect(() => {
+    // Refresh auth on mount to get latest profile from API
+    if (!isDemoMode) {
+      refreshAuth();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Show avatar upload prompt if user has no photo (skip in demo mode)
