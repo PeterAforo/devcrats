@@ -149,9 +149,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const user = useAuthStore((s) => s.user);
   const navGroups = getNavForRole(user?.role);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navGroups.forEach((group) => {
+      initial[group.category] = true;
+    });
+    return initial;
+  });
 
   const toggleGroup = (category: string) => {
     setCollapsedGroups((prev) => ({ ...prev, [category]: !prev[category] }));
