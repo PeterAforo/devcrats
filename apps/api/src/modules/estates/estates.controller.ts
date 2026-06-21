@@ -7,8 +7,11 @@ import {
   Body,
   Param,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { EstatesService } from './estates.service';
 import { CreateEstateDto, CreateBuildingDto, CreateUnitDto } from './dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -104,6 +107,16 @@ export class EstatesController {
   @ApiOperation({ summary: 'Soft delete unit' })
   removeUnit(@Param('id') id: string) {
     return this.estatesService.deleteUnit(id);
+  }
+
+  @Post('estates/:id/logo')
+  @Roles('super_admin', 'estate_manager')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOperation({ summary: 'Upload estate logo' })
+  uploadLogo(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.estatesService.uploadLogo(id, file);
   }
 
   @Get('estates/:id/occupancy-stats')

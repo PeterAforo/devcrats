@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Phone, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Search, Phone, Pencil, Trash2, Loader2, Upload, ImageIcon, Printer, BadgeCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { StaffIdCard } from '@/components/staff-id-card';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 
-const defaultStaffForm = { firstName: '', lastName: '', email: '', phone: '', role: 'security_guard' };
+const defaultStaffForm = { firstName: '', lastName: '', email: '', phone: '', role: 'security_guard', address: '' };
 const defaultVendorForm = { name: '', specialty: '', contactName: '', phone: '', email: '', address: '' };
 
 export default function StaffPage() {
@@ -30,6 +31,8 @@ export default function StaffPage() {
   const [editStaffId, setEditStaffId] = useState<string | null>(null);
   const [staffForm, setStaffForm] = useState(defaultStaffForm);
   const [deleteStaffId, setDeleteStaffId] = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [showIdCard, setShowIdCard] = useState<any>(null);
 
   // Vendor state
   const [showVendorDialog, setShowVendorDialog] = useState(false);
@@ -69,10 +72,11 @@ export default function StaffPage() {
   const openAddStaff = () => { setEditStaffId(null); setStaffForm(defaultStaffForm); setShowStaffDialog(true); };
   const openEditStaff = (s: any) => {
     setEditStaffId(s.id);
-    setStaffForm({ firstName: s.user?.firstName || '', lastName: s.user?.lastName || '', email: s.user?.email || '', phone: s.user?.phone || '', role: s.role || 'security_guard' });
+    setSelectedStaff(s);
+    setStaffForm({ firstName: s.user?.firstName || '', lastName: s.user?.lastName || '', email: s.user?.email || '', phone: s.user?.phone || '', role: s.role || 'security_guard', address: s.address || '' });
     setShowStaffDialog(true);
   };
-  const closeStaffDialog = () => { setShowStaffDialog(false); setEditStaffId(null); setStaffForm(defaultStaffForm); };
+  const closeStaffDialog = () => { setShowStaffDialog(false); setEditStaffId(null); setStaffForm(defaultStaffForm); setSelectedStaff(null); };
 
   // ─── Vendor mutations ───
   const vendorSave = useMutation({
@@ -134,7 +138,7 @@ export default function StaffPage() {
                       <TableHead>Role</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead className="w-24">Actions</TableHead>
+                      <TableHead className="w-32">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -147,6 +151,7 @@ export default function StaffPage() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditStaff(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowIdCard(s)} title="View ID Card"><BadgeCheck className="h-3.5 w-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteStaffId(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                           </div>
                         </TableCell>
@@ -215,6 +220,49 @@ export default function StaffPage() {
                 <option value="gate_officer">Gate Officer</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input value={staffForm.address} onChange={(e) => setStaffForm({ ...staffForm, address: e.target.value })} placeholder="Residential address" />
+            </div>
+            {editStaffId && (
+              <div className="space-y-2">
+                <Label>Photo</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/50">
+                    {selectedStaff?.photoUrl ? (
+                      <img src={selectedStaff.photoUrl} alt="Staff photo" className="w-full h-full object-cover rounded-lg" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border cursor-pointer hover:bg-muted transition-colors">
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload Photo
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && editStaffId) {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/staff/${editStaffId}/photo`, {
+                            method: 'POST',
+                            body: formData,
+                            headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+                          }).then((r) => r.json()).then((data) => {
+                            setSelectedStaff({ ...selectedStaff, photoUrl: data.photoUrl });
+                            toast.success('Photo uploaded');
+                          }).catch(() => toast.error('Upload failed'));
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeStaffDialog}>Cancel</Button>
@@ -263,6 +311,24 @@ export default function StaffPage() {
               {vendorSave.isPending ? 'Saving...' : editVendorId ? 'Update' : 'Add'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff ID Card Dialog */}
+      <Dialog open={!!showIdCard} onOpenChange={() => setShowIdCard(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Staff ID Card</DialogTitle>
+          </DialogHeader>
+          {showIdCard && (
+            <StaffIdCard 
+              staff={{
+                ...showIdCard,
+                estate: { name: user?.estateId ? 'Estate' : 'EstateIQ' } // TODO: Fetch actual estate name
+              }}
+              onClose={() => setShowIdCard(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

@@ -49,6 +49,24 @@ export function useDeleteEstate() {
   });
 }
 
+export function useUploadEstateLogo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/estates/${id}/logo`, {
+        method: 'POST',
+        body: formData,
+        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+      }).then((r) => r.json());
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estates'] });
+    },
+  });
+}
+
 // ─── BUILDINGS & UNITS ────────────────────────────────────
 export function useBuildings(estateId: string) {
   return useQuery({

@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Plus, Search, MapPin, Users, Home, X, Pencil, Trash2, Eye, Navigation, Loader2 } from 'lucide-react';
+import { Building2, Plus, Search, MapPin, Users, Home, X, Pencil, Trash2, Eye, Navigation, Loader2, Upload, ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useEstates, useCreateEstate } from '@/lib/hooks';
+import { useEstates, useCreateEstate, useUploadEstateLogo } from '@/lib/hooks';
 
 interface Estate {
   id: string;
@@ -21,6 +21,7 @@ interface Estate {
   lat?: number;
   lng?: number;
   owner?: string;
+  logoUrl?: string;
 }
 
 const initialEstates: Estate[] = [
@@ -43,6 +44,7 @@ export default function EstatesPage() {
 
   const { data: apiData } = useEstates();
   const createEstate = useCreateEstate();
+  const uploadLogo = useUploadEstateLogo();
 
   // API data takes priority over local mock
   const estates: Estate[] = apiData?.data
@@ -57,6 +59,7 @@ export default function EstatesPage() {
         lat: e.latitude,
         lng: e.longitude,
         owner: e.createdByUser?.firstName ? `${e.createdByUser.firstName} ${e.createdByUser.lastName}` : undefined,
+        logoUrl: e.logoUrl,
       }))
     : localEstates;
 
@@ -278,6 +281,38 @@ export default function EstatesPage() {
           </DialogHeader>
           {showDetail && (
             <div className="space-y-4 py-4">
+              {/* Estate Logo */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/50">
+                  {showDetail.logoUrl ? (
+                    <img src={showDetail.logoUrl} alt="Estate logo" className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Estate Logo</p>
+                  <p className="text-xs text-muted-foreground mb-2">Used on receipts and documents</p>
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border cursor-pointer hover:bg-muted transition-colors">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadLogo.isPending ? 'Uploading...' : 'Upload Logo'}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      disabled={uploadLogo.isPending}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && showDetail) {
+                          uploadLogo.mutate({ id: showDetail.id, file });
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-4">
                 <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{showDetail.buildings}</p><p className="text-xs text-muted-foreground">Buildings</p></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{showDetail.units}</p><p className="text-xs text-muted-foreground">Units</p></CardContent></Card>

@@ -1,10 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateEstateDto, CreateBuildingDto, CreateUnitDto } from './dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class EstatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly uploadDir: string;
+  private readonly blobToken: string;
+  private readonly isProduction: boolean;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {
+    this.blobToken = this.configService.get<string>('BLOB_READ_WRITE_TOKEN', '');
+    this.isProduction = this.configService.get('NODE_ENV') === 'production';
+    this.uploadDir = path.join(process.cwd(), 'uploads');
+    if (!this.isProduction && !fs.existsSync(this.uploadDir)) {
+      fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
+  }
 
   async createEstate(dto: CreateEstateDto, userId: string) {
     return this.prisma.estate.create({
@@ -127,6 +144,45 @@ export class EstatesService {
     return this.prisma.unit.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  async uploadLogo(id: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file provided');
+
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException('Only image files (JPEG, PNG, WebP, SVG) are allowed');
+    }
+
+    await this.findEstateById(id);
+
+    const ext = path.extname(file.originalname);
+    const filename = `estate-logo-${id}-${Date.now()}${ext}`;
+    let logoUrl: string;
+
+    if (this.isProduction && this.blobToken) {
+      const response = await fetch(`https://blob.vercel-storage.com/${filename}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${this.blobToken}`,
+          'x-content-type': file.mimetype,
+          'x-api-version': '7',
+        },
+        body: new Uint8Array(file.buffer),
+      });
+      if (!response.ok) throw new BadRequestException('Logo upload failed');
+      const data = await response.json() as { url: string };
+      logoUrl = data.url;
+    } else {
+      const filePath = path.join(this.uploadDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+      logoUrl = `/uploads/${filename}`;
+    }
+
+    return this.prisma.estate.update({
+      where: { id },
+      data: { logoUrl },
     });
   }
 

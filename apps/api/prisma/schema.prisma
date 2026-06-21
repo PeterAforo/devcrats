@@ -1136,6 +1136,8 @@ model Staff {
   role     StaffRole
   salary   Decimal?  @db.Decimal(12, 2)
   hireDate DateTime  @map("hire_date")
+  photoUrl String?   @map("photo_url")
+  address  String?
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

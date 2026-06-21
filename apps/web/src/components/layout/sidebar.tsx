@@ -19,6 +19,7 @@ import {
   BarChart3,
   Settings,
   ChevronLeft,
+  ChevronDown,
   Plug,
   Shield,
   Home,
@@ -29,75 +30,112 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/auth-store';
 
 type NavItem = { label: string; href: string; icon: any };
+type NavGroup = { category: string; items: NavItem[] };
 
-const adminNav: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
-  { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
-  { label: 'Directory', href: '/dashboard/directory', icon: Users },
-  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
-  { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
-  { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
-  { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
-  { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
-  { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
-  { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
-  { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
-  { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
-  { label: 'Documents', href: '/dashboard/documents', icon: FileText },
-  { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-  { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Integrations', href: '/dashboard/integrations', icon: Plug },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+const adminNav: NavGroup[] = [
+  { category: 'Main', items: [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  ]},
+  { category: 'Property', items: [
+    { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
+    { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
+    { label: 'Directory', href: '/dashboard/directory', icon: Users },
+    { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
+  ]},
+  { category: 'Finance', items: [
+    { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
+    { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
+    { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
+  ]},
+  { category: 'Operations', items: [
+    { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
+    { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
+    { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
+    { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
+    { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
+  ]},
+  { category: 'System', items: [
+    { label: 'Documents', href: '/dashboard/documents', icon: FileText },
+    { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+    { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+    { label: 'Integrations', href: '/dashboard/integrations', icon: Plug },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+  ]},
 ];
 
-const managerNav: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
-  { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
-  { label: 'Directory', href: '/dashboard/directory', icon: Users },
-  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
-  { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
-  { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
-  { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
-  { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
-  { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
-  { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
-  { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
-  { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
-  { label: 'Documents', href: '/dashboard/documents', icon: FileText },
-  { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+const managerNav: NavGroup[] = [
+  { category: 'Main', items: [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  ]},
+  { category: 'Property', items: [
+    { label: 'Estates', href: '/dashboard/estates', icon: Building2 },
+    { label: 'Tenants & Landlords', href: '/dashboard/persons', icon: Users },
+    { label: 'Directory', href: '/dashboard/directory', icon: Users },
+    { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
+  ]},
+  { category: 'Finance', items: [
+    { label: 'EMF', href: '/dashboard/emf', icon: Wallet },
+    { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
+    { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
+  ]},
+  { category: 'Operations', items: [
+    { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
+    { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
+    { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
+    { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
+    { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
+  ]},
+  { category: 'System', items: [
+    { label: 'Documents', href: '/dashboard/documents', icon: FileText },
+    { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+  ]},
 ];
 
-const landlordNav: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'My Properties', href: '/dashboard/my-properties', icon: Home },
-  { label: 'Tenants', href: '/dashboard/persons', icon: Users },
-  { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
-  { label: 'Income & Payments', href: '/dashboard/payments', icon: CreditCard },
-  { label: 'Receipts', href: '/dashboard/receipts', icon: Receipt },
-  { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
-  { label: 'Documents', href: '/dashboard/documents', icon: FileText },
-  { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+const landlordNav: NavGroup[] = [
+  { category: 'Main', items: [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'My Properties', href: '/dashboard/my-properties', icon: Home },
+  ]},
+  { category: 'People', items: [
+    { label: 'Tenants', href: '/dashboard/persons', icon: Users },
+    { label: 'Approvals', href: '/dashboard/approvals', icon: FileText },
+  ]},
+  { category: 'Finance', items: [
+    { label: 'Income & Payments', href: '/dashboard/payments', icon: CreditCard },
+    { label: 'Receipts', href: '/dashboard/receipts', icon: Receipt },
+  ]},
+  { category: 'System', items: [
+    { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
+    { label: 'Documents', href: '/dashboard/documents', icon: FileText },
+    { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+  ]},
 ];
 
-const tenantNav: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'My Unit', href: '/dashboard/my-unit', icon: Home },
-  { label: 'My Family', href: '/dashboard/my-family', icon: Users },
-  { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
-  { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
-  { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
-  { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
-  { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
-  { label: 'Documents', href: '/dashboard/documents', icon: FileText },
-  { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+const tenantNav: NavGroup[] = [
+  { category: 'Main', items: [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'My Unit', href: '/dashboard/my-unit', icon: Home },
+    { label: 'My Family', href: '/dashboard/my-family', icon: Users },
+  ]},
+  { category: 'Finance', items: [
+    { label: 'Payments', href: '/dashboard/payments', icon: Receipt },
+    { label: 'Receipts', href: '/dashboard/receipts', icon: CreditCard },
+  ]},
+  { category: 'Services', items: [
+    { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench },
+    { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
+    { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
+  ]},
+  { category: 'System', items: [
+    { label: 'Documents', href: '/dashboard/documents', icon: FileText },
+    { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+  ]},
 ];
 
-function getNavForRole(role?: string): NavItem[] {
+function getNavForRole(role?: string): NavGroup[] {
   switch (role) {
     case 'super_admin': return adminNav;
     case 'estate_manager': return managerNav;
@@ -111,8 +149,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const user = useAuthStore((s) => s.user);
-  const navItems = getNavForRole(user?.role);
+  const navGroups = getNavForRole(user?.role);
+
+  const toggleGroup = (category: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [category]: !prev[category] }));
+  };
 
   return (
     <>
@@ -147,31 +190,48 @@ export function Sidebar() {
         )}
       </div>
 
-      {!collapsed && user && (
-        <div className="px-4 py-3 border-b border-navy-400">
-          <p className="text-xs text-navy-200 truncate">{user.firstName} {user.lastName}</p>
-          <p className="text-[10px] text-navy-300 capitalize">{user.role?.replace('_', ' ')}</p>
-        </div>
-      )}
+      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
+        {navGroups.map((group) => {
+          const isGroupCollapsed = collapsedGroups[group.category];
+          const hasActiveItem = group.items.some(
+            (item) => pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+          );
 
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-gold/20 text-gold'
-                  : 'text-navy-200 hover:bg-navy-400 hover:text-white'
+            <div key={group.category}>
+              {!collapsed && (
+                <button
+                  onClick={() => toggleGroup(group.category)}
+                  className={cn(
+                    'flex items-center justify-between w-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded',
+                    hasActiveItem ? 'text-gold' : 'text-navy-300 hover:text-navy-100'
+                  )}
+                >
+                  <span>{group.category}</span>
+                  <ChevronDown className={cn('h-3 w-3 transition-transform', isGroupCollapsed && '-rotate-90')} />
+                </button>
               )}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </Link>
+
+              {!isGroupCollapsed && group.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-gold/20 text-gold'
+                        : 'text-navy-200 hover:bg-navy-400 hover:text-white'
+                    )}
+                  >
+                    <item.icon className="h-4.5 w-4.5 flex-shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

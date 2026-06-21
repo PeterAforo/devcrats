@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { StaffService } from './staff.service';
 
 @ApiTags('Staff & Vendors')
@@ -32,6 +33,15 @@ export class StaffController {
   @ApiOperation({ summary: 'Delete staff member' })
   deleteStaff(@Param('id') id: string) {
     return this.staffService.deleteStaff(id);
+  }
+
+  @Post('staff/:id/photo')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOperation({ summary: 'Upload staff photo' })
+  uploadPhoto(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.staffService.uploadPhoto(id, file);
   }
 
   // ─── VENDORS ────────────────────────────────────────────
