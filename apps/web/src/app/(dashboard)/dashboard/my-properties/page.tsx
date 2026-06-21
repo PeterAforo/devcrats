@@ -324,15 +324,15 @@ export default function MyPropertiesPage() {
                   sizeSqft: Number(propForm.sizeSqft) || 0,
                   status: 'vacant' as const,
                   building: {
-                    name: cluster?.name || 'Main',
-                    estate: { name: selectedEstate?.name || '', address: selectedEstate?.address || '', city: selectedEstate?.city || '' },
-                    cluster: cluster ? { name: cluster.name } : null,
+                    name: (cluster?.name as string) || 'Main',
+                    estate: { name: (selectedEstate?.name as string) || '', address: (selectedEstate?.address as string) || '', city: (selectedEstate?.city as string) || '' },
+                    cluster: cluster ? { name: cluster.name as string } : null as null,
                   },
                 },
-                tenant: null,
-                rentAmount: null,
+                tenant: null as null,
+                rentAmount: null as null,
               };
-              setLocalProperties([newProp, ...localProperties]);
+              setLocalProperties([newProp as typeof localProperties[0], ...localProperties]);
               setPropForm({ houseNumber: '', estateId: '', clusterId: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
               setShowAddProperty(false);
             }}>
