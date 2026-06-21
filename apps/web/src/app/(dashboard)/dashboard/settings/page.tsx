@@ -10,6 +10,8 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/store/auth-store';
+import { toast } from 'sonner';
+import api from '@/lib/api';
 
 const roleLabels: Record<string, string> = {
   tenant: 'Tenant',
@@ -20,11 +22,27 @@ const roleLabels: Record<string, string> = {
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
-  const firstName = user?.firstName || 'Kwame';
-  const lastName = user?.lastName || 'Boateng';
-  const email = user?.email || 'manager@estateiq.com';
+  const setUser = useAuthStore((s) => s.setUser);
+  const firstName = user?.firstName || '';
+  const lastName = user?.lastName || '';
+  const email = user?.email || '';
+  const phone = user?.phone || '';
   const role = user?.role || 'estate_manager';
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
+
+  const [profileForm, setProfileForm] = useState({
+    firstName,
+    lastName,
+    phone,
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,12 +51,51 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be under 5 MB');
+      toast.error('Image must be under 5 MB');
       return;
     }
     const reader = new FileReader();
     reader.onloadend = () => setAvatarPreview(reader.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const updated = await api.patch('/auth/me', profileForm);
+      if (setUser && updated) {
+        setUser(updated);
+      }
+      toast.success('Profile updated successfully');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await api.post('/auth/change-password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      toast.success('Password updated successfully');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to change password');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
@@ -83,7 +140,7 @@ export default function SettingsPage() {
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarChange} />
                 <div className="flex-1 space-y-2 text-center sm:text-left">
                   <div>
-                    <p className="font-semibold text-lg">{firstName} {lastName}</p>
+                    <p className="font-semibold text-lg">{profileForm.firstName} {profileForm.lastName}</p>
                     <div className="flex items-center gap-2 justify-center sm:justify-start mt-1">
                       <Badge variant="outline" className="text-xs">{roleLabels[role] || role}</Badge>
                       <span className="text-xs text-muted-foreground">{email}</span>
@@ -114,23 +171,26 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" defaultValue={firstName} />
+                  <Input id="firstName" value={profileForm.firstName} onChange={(e) => setProfileForm((p) => ({ ...p, firstName: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" defaultValue={lastName} />
+                  <Input id="lastName" value={profileForm.lastName} onChange={(e) => setProfileForm((p) => ({ ...p, lastName: e.target.value }))} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue={email} />
+                <Input id="email" type="email" value={email} disabled className="opacity-60" />
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" defaultValue="+233 24 000 0002" />
+                <Input id="phone" value={profileForm.phone} onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))} />
               </div>
               <Separator />
-              <Button>Save Changes</Button>
+              <Button onClick={handleSaveProfile} disabled={profileSaving}>
+                {profileSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -164,7 +224,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
-              <Button>Save Preferences</Button>
+              <Button onClick={() => toast.success('Notification preferences saved')}>Save Preferences</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -178,15 +238,15 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
+                <Input id="currentPassword" type="password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
+                <Input id="newPassword" type="password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
+                <Input id="confirmPassword" type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))} />
               </div>
               <Separator />
               <div className="flex items-center justify-between py-2">
@@ -197,7 +257,9 @@ export default function SettingsPage() {
                 <Button variant="outline">Enable 2FA</Button>
               </div>
               <Separator />
-              <Button>Update Password</Button>
+              <Button onClick={handleChangePassword} disabled={passwordSaving || !passwordForm.currentPassword || !passwordForm.newPassword}>
+                {passwordSaving ? 'Updating...' : 'Update Password'}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

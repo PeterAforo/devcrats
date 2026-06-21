@@ -94,6 +94,14 @@ class ApiClient {
     });
   }
 
+  async patch<T = any>(endpoint: string, data?: any, options?: FetchOptions): Promise<T> {
+    return this.fetch<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
   async delete<T = any>(endpoint: string, options?: FetchOptions): Promise<T> {
     return this.fetch<T>(endpoint, { ...options, method: 'DELETE' });
   }
