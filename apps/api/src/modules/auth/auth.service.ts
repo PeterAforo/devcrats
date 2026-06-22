@@ -41,6 +41,7 @@ export class AuthService {
         lastName: dto.lastName,
         phone: dto.phone,
         role: 'tenant',
+        estateId: dto.estateId,
       },
       select: {
         id: true,
@@ -49,6 +50,7 @@ export class AuthService {
         lastName: true,
         role: true,
         emailVerified: true,
+        estateId: true,
       },
     });
 
