@@ -70,30 +70,45 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
   return app;
 }
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://devcrats.vercel.app',
+  'https://devcrats-web.vercel.app',
+];
+
+function setCorsHeaders(req: any, res: any) {
+  const origin = req.headers?.origin;
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : ALLOWED_ORIGINS;
+
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+}
+
 export default async function handler(req: any, res: any) {
-  console.log('Serverless Handler:', { method: req.method, url: req.url, path: req.path });
-  
+  // Set CORS headers immediately for every request
+  setCorsHeaders(req, res);
+
+  // Handle preflight directly without bootstrapping the app
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   try {
     const app = await bootstrapServer();
-    console.log('Serverless Handler: App bootstrapped');
     const instance = app.getHttpAdapter().getInstance() as any;
-    console.log('Serverless Handler: Got HTTP adapter instance');
-    
-    // Add response listener to catch errors
-    const originalEnd = res.end;
-    res.end = function(...args: any[]) {
-      console.log('Serverless Handler: Response ended', { status: res.statusCode });
-      return originalEnd.apply(res, args);
-    };
-    
     instance(req, res);
   } catch (error) {
     console.error('Serverless Handler Error:', error);
-    console.error('Serverless Handler Error Stack:', error.stack);
     res.status(500).json({ 
       error: 'Internal server error', 
       message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
