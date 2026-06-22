@@ -76,12 +76,12 @@ export class IntegrationsService implements OnModuleInit {
 
   async getAll() {
     const integrations = await this.prisma.integration.findMany({ orderBy: [{ category: 'asc' }, { displayName: 'asc' }] });
-    return integrations.map((i) => this.maskCredentials(i));
+    return integrations.map((i: any) => this.maskCredentials(i));
   }
 
   async getByCategory(category: string) {
     const integrations = await this.prisma.integration.findMany({ where: { category }, orderBy: { displayName: 'asc' } });
-    return integrations.map((i) => this.maskCredentials(i));
+    return integrations.map((i: any) => this.maskCredentials(i));
   }
 
   async get(provider: string) {
