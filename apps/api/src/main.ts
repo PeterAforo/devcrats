@@ -25,7 +25,7 @@ async function bootstrap() {
     app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
   }
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', { exclude: ['/'] });
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(compression());

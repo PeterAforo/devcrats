@@ -25,7 +25,7 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, expressAdapter);
   console.log('Serverless: NestJS app created');
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', { exclude: ['/'] });
   console.log('Serverless: Global prefix set to api/v1');
 
   app.use(helmet({ contentSecurityPolicy: false }));
