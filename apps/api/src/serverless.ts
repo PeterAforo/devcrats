@@ -28,19 +28,20 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
   app.setGlobalPrefix('api/v1', { exclude: ['/'] });
   console.log('Serverless: Global prefix set to api/v1');
 
-  app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(cookieParser());
-
   const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
     : ['http://localhost:3000', 'https://devcrats.vercel.app', 'https://devcrats-web.vercel.app'];
 
+  // Enable CORS before any other middleware
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
+
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({
