@@ -33,11 +33,13 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 
   const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'https://devcrats.vercel.app'];
+    : ['http://localhost:3000', 'https://devcrats.vercel.app', 'https://devcrats-web.vercel.app'];
 
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   app.useGlobalPipes(
