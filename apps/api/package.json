@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && nest build",
-    "vercel-build": "prisma generate && nest build",
+    "vercel-build": "prisma generate && prisma db push && nest build",
     "dev": "nest start --watch",
     "start": "nest start",
     "start:prod": "node dist/src/main",
