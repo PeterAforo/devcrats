@@ -43,7 +43,7 @@ export class ReceiptsController {
   @Get('receipts/:id/print')
   @ApiOperation({ summary: 'Get printable receipt HTML' })
   @Header('Content-Type', 'text/html')
-  async print(@Param('id') id: string, @Res() res: Response) {
+  async print(@Param('id') id: string, @Res() res: any) {
     const html = await this.receiptsService.generatePrintableHtml(id);
     res.send(html);
   }

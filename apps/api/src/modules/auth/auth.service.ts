@@ -282,11 +282,11 @@ export class AuthService {
       this.jwtService.signAsync(payload, {
         secret: this.configService.get('JWT_SECRET', 'estateiq-secret'),
         expiresIn: '15m',
-      }),
+      } as any),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get('JWT_REFRESH_SECRET', 'estateiq-refresh-secret'),
         expiresIn: '7d',
-      }),
+      } as any),
     ]);
 
     return { accessToken, refreshToken, expiresIn: 900 };

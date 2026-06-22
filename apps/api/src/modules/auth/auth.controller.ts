@@ -41,8 +41,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   async login(
     @Body() dto: LoginDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
   ) {
     const result = await this.authService.login(
       dto,
@@ -70,8 +70,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
   ) {
     const refreshToken = req.cookies?.['refresh_token'];
     if (!refreshToken) {
@@ -99,8 +99,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
   async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
   ) {
     const refreshToken = req.cookies?.['refresh_token'];
     if (refreshToken) {

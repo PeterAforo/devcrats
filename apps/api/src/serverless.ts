@@ -73,7 +73,7 @@ export default async function handler(req: any, res: any) {
   try {
     const app = await bootstrapServer();
     console.log('Serverless Handler: App bootstrapped');
-    const instance = app.getHttpAdapter().getInstance();
+    const instance = app.getHttpAdapter().getInstance() as any;
     console.log('Serverless Handler: Got HTTP adapter instance');
     
     // Add response listener to catch errors
