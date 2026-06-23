@@ -39,11 +39,7 @@ const server = express();
 server.use(cors(corsOptions));
 
 // Body parser middleware - must be before NestJS
-server.use(express.json({ limit: '10mb', verify: (req, res, buf) => {
-  // Store raw body for debugging
-  (req as any).rawBody = buf;
-  return true;
-}}));
+server.use(express.json({ limit: '10mb' }));
 server.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 let cachedApp: NestExpressApplication;
@@ -97,28 +93,6 @@ export default async function handler(req: any, res: any) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
   }
 
-  console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
-  
-  // In Vercel, body might come as a stream or already parsed
-  if (req.body) {
-    console.log('req.body type:', typeof req.body);
-    console.log('req.body value:', JSON.stringify(req.body));
-  } else {
-    console.log('req.body is undefined, reading from stream...');
-    // Try to read from stream
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const body = Buffer.concat(chunks).toString();
-    console.log('Stream body:', body);
-    try {
-      req.body = JSON.parse(body);
-    } catch (e) {
-      console.log('Failed to parse stream body as JSON');
-    }
-  }
-
   // Handle preflight immediately
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -126,11 +100,8 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    console.log('Bootstrapping server...');
     const app = await bootstrapServer();
-    console.log('Server bootstrapped, getting instance...');
     const instance = app.getHttpAdapter().getInstance() as any;
-    console.log('Got instance, calling handler...');
     instance(req, res);
   } catch (error: any) {
     console.error('Serverless Handler Error:', error);
