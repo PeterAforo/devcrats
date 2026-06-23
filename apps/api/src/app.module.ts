@@ -17,6 +17,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
 import { EmfModule } from './modules/emf/emf.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { GateAccessModule } from './modules/gate-access/gate-access.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HealthController } from './health.controller';
@@ -40,6 +41,7 @@ import { HealthController } from './health.controller';
     ReceiptsModule,
     EmfModule,
     StaffModule,
+    GateAccessModule,
   ],
   controllers: [HealthController],
   providers: [
