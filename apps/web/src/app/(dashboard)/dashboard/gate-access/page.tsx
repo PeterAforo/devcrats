@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useGateAccessStore } from '@/store/gate-access-store';
 import { useAuthStore } from '@/store/auth-store';
+import { estatesApi } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Shield, Users, Car, AlertTriangle, LogOut, Clock, Plus, Edit, Trash2 } from 'lucide-react';
+import { Shield, Users, Car, AlertTriangle, LogOut, Clock, Plus, Edit, Trash2, Building2 } from 'lucide-react';
 
 export default function GateAccessPage() {
   const { user } = useAuthStore();
@@ -44,42 +45,59 @@ export default function GateAccessPage() {
   const [activeTab, setActiveTab] = useState('gates');
   const [showDialog, setShowDialog] = useState(false);
   const [dialogType, setDialogType] = useState<'gate' | 'shift' | 'pass' | 'vehicle' | 'blacklist' | 'checkin'>('gate');
+  const [selectedEstateId, setSelectedEstateId] = useState<string>(user?.estateId || '');
+  const [estates, setEstates] = useState<any[]>([]);
 
   useEffect(() => {
-    if (user?.estateId) {
-      fetchGates(user.estateId);
-      fetchActiveShifts(user.estateId);
-      fetchAccessPasses(user.estateId);
-      fetchGateLogs(user.estateId);
-      fetchActiveVisitors(user.estateId);
-      fetchVehicles(user.estateId);
-      fetchBlacklist(user.estateId);
+    if (user?.role === 'super_admin') {
+      estatesApi.getEstates().then((res: any) => {
+        setEstates(res.data || []);
+        if (res.data?.length > 0 && !selectedEstateId) {
+          setSelectedEstateId(res.data[0].id);
+        }
+      });
     }
-  }, [user?.estateId]);
+  }, [user?.role]);
+
+  useEffect(() => {
+    const estateId = user?.role === 'super_admin' ? selectedEstateId : user?.estateId;
+    if (estateId) {
+      fetchGates(estateId);
+      fetchActiveShifts(estateId);
+      fetchAccessPasses(estateId);
+      fetchGateLogs(estateId);
+      fetchActiveVisitors(estateId);
+      fetchVehicles(estateId);
+      fetchBlacklist(estateId);
+    }
+  }, [selectedEstateId, user?.estateId, user?.role]);
 
   const handleCreate = async (data: any) => {
     try {
-      if (dialogType === 'gate') await createGate(data);
-      if (dialogType === 'shift') await startShift(data);
-      if (dialogType === 'pass') await createAccessPass(data);
-      if (dialogType === 'vehicle') await registerVehicle(data);
-      if (dialogType === 'blacklist') await addToBlacklist(data);
-      if (dialogType === 'checkin') await checkInWalkIn(data);
+      const estateId = user?.role === 'super_admin' ? selectedEstateId : user?.estateId;
+      if (dialogType === 'gate') await createGate({ ...data, estateId });
+      if (dialogType === 'shift') await startShift({ ...data, estateId });
+      if (dialogType === 'pass') await createAccessPass({ ...data, estateId });
+      if (dialogType === 'vehicle') await registerVehicle({ ...data, estateId });
+      if (dialogType === 'blacklist') await addToBlacklist({ ...data, estateId });
+      if (dialogType === 'checkin') await checkInWalkIn({ ...data, estateId });
       setShowDialog(false);
       // Refresh data
-      if (user?.estateId) {
-        fetchGates(user.estateId);
-        fetchActiveShifts(user.estateId);
-        fetchAccessPasses(user.estateId);
-        fetchGateLogs(user.estateId);
-        fetchActiveVisitors(user.estateId);
-        fetchVehicles(user.estateId);
-        fetchBlacklist(user.estateId);
+      if (estateId) {
+        fetchGates(estateId);
+        fetchActiveShifts(estateId);
+        fetchAccessPasses(estateId);
+        fetchGateLogs(estateId);
+        fetchActiveVisitors(estateId);
+        fetchVehicles(estateId);
+        fetchBlacklist(estateId);
       }
     } catch (err) {
       console.error(err);
     }
   };
+
+  const currentEstateId = user?.role === 'super_admin' ? selectedEstateId : user?.estateId;
 
   return (
     <div className="space-y-6">
@@ -88,6 +106,21 @@ export default function GateAccessPage() {
           <h1 className="text-3xl font-bold">Gate Access Control</h1>
           <p className="text-muted-foreground">Manage gates, guard shifts, access passes, and visitor logs</p>
         </div>
+        {user?.role === 'super_admin' && estates.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedEstateId} onValueChange={setSelectedEstateId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select estate" />
+              </SelectTrigger>
+              <SelectContent>
+                {estates.map((estate) => (
+                  <SelectItem key={estate.id} value={estate.id}>{estate.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -120,7 +153,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Add New Gate</DialogTitle>
                       <DialogDescription>Create a new gate entry point</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, name: (e.currentTarget as any).name.value, type: (e.currentTarget as any).type.value }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ name: (e.currentTarget as any).name.value, type: (e.currentTarget as any).type.value }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="name">Gate Name</Label>
@@ -193,7 +226,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Start Guard Shift</DialogTitle>
                       <DialogDescription>Begin a new guard shift at a gate</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, gateId: (e.currentTarget as any).gateId.value, guardId: user?.id, notes: (e.currentTarget as any).notes.value }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ gateId: (e.currentTarget as any).gateId.value, guardId: user?.id, notes: (e.currentTarget as any).notes.value }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="gateId">Gate</Label>
@@ -277,7 +310,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Create Access Pass</DialogTitle>
                       <DialogDescription>Generate a new access pass with PIN</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, holderName: (e.currentTarget as any).holderName.value, holderPhone: (e.currentTarget as any).holderPhone.value, passType: (e.currentTarget as any).passType.value, company: (e.currentTarget as any).company.value, validFrom: new Date().toISOString(), validUntil: (e.currentTarget as any).validUntil.value, allowedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ holderName: (e.currentTarget as any).holderName.value, holderPhone: (e.currentTarget as any).holderPhone.value, passType: (e.currentTarget as any).passType.value, company: (e.currentTarget as any).company.value, validFrom: new Date().toISOString(), validUntil: (e.currentTarget as any).validUntil.value, allowedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="holderName">Holder Name</Label>
@@ -369,7 +402,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Walk-in Check-in</DialogTitle>
                       <DialogDescription>Register a walk-in visitor</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, gateId: (e.currentTarget as any).gateId.value, visitorName: (e.currentTarget as any).visitorName.value, visitorPhone: (e.currentTarget as any).visitorPhone.value, purpose: (e.currentTarget as any).purpose.value, vehiclePlate: (e.currentTarget as any).vehiclePlate.value, notes: (e.currentTarget as any).notes.value }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ gateId: (e.currentTarget as any).gateId.value, visitorName: (e.currentTarget as any).visitorName.value, visitorPhone: (e.currentTarget as any).visitorPhone.value, purpose: (e.currentTarget as any).purpose.value, vehiclePlate: (e.currentTarget as any).vehiclePlate.value, notes: (e.currentTarget as any).notes.value }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="gateId">Gate</Label>
@@ -471,7 +504,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Register Vehicle</DialogTitle>
                       <DialogDescription>Add a new vehicle to the estate</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, licensePlate: (e.currentTarget as any).licensePlate.value, ownerName: (e.currentTarget as any).ownerName.value, color: (e.currentTarget as any).color.value, make: (e.currentTarget as any).make.value, model: (e.currentTarget as any).model.value }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ licensePlate: (e.currentTarget as any).licensePlate.value, ownerName: (e.currentTarget as any).ownerName.value, color: (e.currentTarget as any).color.value, make: (e.currentTarget as any).make.value, model: (e.currentTarget as any).model.value }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="licensePlate">License Plate</Label>
@@ -545,7 +578,7 @@ export default function GateAccessPage() {
                       <DialogTitle>Add to Blacklist</DialogTitle>
                       <DialogDescription>Deny access to this individual</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ estateId: user?.estateId, name: (e.currentTarget as any).name.value, phone: (e.currentTarget as any).phone.value, reason: (e.currentTarget as any).reason.value, addedBy: user?.id }); }}>
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreate({ name: (e.currentTarget as any).name.value, phone: (e.currentTarget as any).phone.value, reason: (e.currentTarget as any).reason.value, addedBy: user?.id }); }}>
                       <div className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="name">Name</Label>

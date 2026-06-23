@@ -249,3 +249,8 @@ export const gateAccessApi = {
   getBlacklist: (estateId?: string, page = 1, limit = 20) =>
     api.get(`/gate-access/blacklist?estateId=${estateId}&page=${page}&limit=${limit}`),
 };
+
+// Estates API
+export const estatesApi = {
+  getEstates: () => api.get('/estates'),
+};
