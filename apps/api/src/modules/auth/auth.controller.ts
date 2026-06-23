@@ -44,27 +44,33 @@ export class AuthController {
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
   ) {
-    const result = await this.authService.login(
-      dto,
-      req.ip,
-      req.headers['user-agent'],
-    );
+    try {
+      const result = await this.authService.login(
+        dto,
+        req.ip,
+        req.headers['user-agent'],
+      );
 
-    // Set cookie as fallback for same-origin setups
-    res.cookie('refresh_token', result.refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth',
-    });
+      // Set cookie as fallback for same-origin setups
+      res.cookie('refresh_token', result.refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/v1/auth',
+      });
 
-    return {
-      user: result.user,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-      expiresIn: result.expiresIn,
-    };
+      return {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresIn: result.expiresIn,
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      // Re-throw the error to let NestJS handle it with proper status codes
+      throw error;
+    }
   }
 
   @Public()
