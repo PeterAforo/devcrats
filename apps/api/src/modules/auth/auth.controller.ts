@@ -45,9 +45,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: any,
   ) {
     try {
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
       const result = await this.authService.login(
         dto,
-        req.ip,
+        ipAddress,
         req.headers['user-agent'],
       );
 

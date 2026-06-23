@@ -56,6 +56,8 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
   app.use(cookieParser());
+  
+  // Skip morgan in serverless - it causes socket.remoteAddress errors in Vercel
 
   app.useGlobalPipes(
     new ValidationPipe({
