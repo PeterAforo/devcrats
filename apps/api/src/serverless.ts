@@ -84,6 +84,8 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 }
 
 export default async function handler(req: any, res: any) {
+  console.log('Incoming request:', { method: req.method, url: req.url, headers: req.headers });
+  
   // Always set CORS headers directly on the response object
   const origin = req.headers?.origin || req.headers?.Origin;
   if (origin) {
@@ -105,9 +107,11 @@ export default async function handler(req: any, res: any) {
     instance(req, res);
   } catch (error: any) {
     console.error('Serverless Handler Error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 }
