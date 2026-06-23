@@ -84,7 +84,10 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 }
 
 export default async function handler(req: any, res: any) {
-  console.log('Incoming request:', { method: req.method, url: req.url, headers: req.headers });
+  console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
+  if (req.body) {
+    console.log('Request body:', req.body);
+  }
   
   // Always set CORS headers directly on the response object
   const origin = req.headers?.origin || req.headers?.Origin;
@@ -102,8 +105,11 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    console.log('Bootstrapping server...');
     const app = await bootstrapServer();
+    console.log('Server bootstrapped, getting instance...');
     const instance = app.getHttpAdapter().getInstance() as any;
+    console.log('Got instance, calling handler...');
     instance(req, res);
   } catch (error: any) {
     console.error('Serverless Handler Error:', error);
