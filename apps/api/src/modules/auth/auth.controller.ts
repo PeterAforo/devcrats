@@ -45,12 +45,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: any,
   ) {
     try {
+      console.log('Login attempt:', { email: dto.email, hasPassword: !!dto.password });
       const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
+      console.log('IP Address:', ipAddress);
       const result = await this.authService.login(
         dto,
         ipAddress,
         req.headers['user-agent'],
       );
+      console.log('Login successful for:', dto.email);
 
       // Set cookie as fallback for same-origin setups
       res.cookie('refresh_token', result.refreshToken, {
@@ -69,6 +72,7 @@ export class AuthController {
       };
     } catch (error) {
       console.error('Login error:', error);
+      console.error('Error stack:', (error as any)?.stack);
       // Re-throw the error to let NestJS handle it with proper status codes
       throw error;
     }
