@@ -50,6 +50,7 @@ export class AuthController {
       req.headers['user-agent'],
     );
 
+    // Set cookie as fallback for same-origin setups
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
       secure: true,
@@ -61,6 +62,7 @@ export class AuthController {
     return {
       user: result.user,
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       expiresIn: result.expiresIn,
     };
   }
@@ -70,16 +72,19 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(
+    @Body() body: any,
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
   ) {
-    const refreshToken = req.cookies?.['refresh_token'];
+    // Accept refresh token from body (cross-origin) or cookie (same-origin fallback)
+    const refreshToken = body?.refreshToken || req.cookies?.['refresh_token'];
     if (!refreshToken) {
       return res.status(401).json({ success: false, message: 'No refresh token' });
     }
 
     const tokens = await this.authService.refreshTokens(refreshToken);
 
+    // Set cookie as fallback for same-origin setups
     res.cookie('refresh_token', tokens.refreshToken, {
       httpOnly: true,
       secure: true,
@@ -90,6 +95,7 @@ export class AuthController {
 
     return {
       accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       expiresIn: tokens.expiresIn,
     };
   }
@@ -99,10 +105,12 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
   async logout(
+    @Body() body: any,
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
   ) {
-    const refreshToken = req.cookies?.['refresh_token'];
+    // Accept refresh token from body (cross-origin) or cookie (same-origin fallback)
+    const refreshToken = body?.refreshToken || req.cookies?.['refresh_token'];
     if (refreshToken) {
       await this.authService.logout(refreshToken);
     }

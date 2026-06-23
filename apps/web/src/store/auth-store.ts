@@ -17,6 +17,7 @@ interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   isDemoMode: boolean;
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       isDemoMode: false,
@@ -49,11 +51,12 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
 
         try {
-          const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/login', { email, password });
-          const { user, accessToken } = res.data;
+          const res = await api.post<{ data: { user: AuthUser; accessToken: string; refreshToken: string } }>('/auth/login', { email, password });
+          const { user, accessToken, refreshToken } = res.data;
           api.setToken(accessToken);
+          api.setRefreshToken(refreshToken);
           api.setDemoMode(false);
-          set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
+          set({ user, refreshToken, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch (err) {
           set({ isLoading: false });
           throw err;
@@ -64,13 +67,14 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
 
         try {
-          const res = await api.post<{ data: { user: AuthUser; accessToken: string } }>('/auth/register', {
+          const res = await api.post<{ data: { user: AuthUser; accessToken: string; refreshToken: string } }>('/auth/register', {
             ...data,
           });
-          const { user, accessToken } = res.data;
+          const { user, accessToken, refreshToken } = res.data;
           api.setToken(accessToken);
+          api.setRefreshToken(refreshToken);
           api.setDemoMode(false);
-          set({ user, isAuthenticated: true, isLoading: false, isDemoMode: false });
+          set({ user, refreshToken, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch (err) {
           set({ isLoading: false });
           throw err;
@@ -80,14 +84,15 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         if (!api.isDemoMode) {
           try {
-            await api.post('/auth/logout');
+            await api.post('/auth/logout', { refreshToken: api.getRefreshToken() });
           } catch {
             // ignore
           }
         }
         api.setToken(null);
+        api.setRefreshToken(null);
         api.setDemoMode(false);
-        set({ user: null, isAuthenticated: false, isLoading: false, isDemoMode: false });
+        set({ user: null, refreshToken: null, isAuthenticated: false, isLoading: false, isDemoMode: false });
       },
 
       refreshAuth: async () => {
@@ -96,24 +101,32 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
         try {
-          const res = await api.post<{ data: { accessToken: string } }>('/auth/refresh');
+          const res = await api.post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken: api.getRefreshToken() });
           api.setToken(res.data.accessToken);
+          if (res.data.refreshToken) {
+            api.setRefreshToken(res.data.refreshToken);
+            set({ refreshToken: res.data.refreshToken });
+          }
           const profile = await api.get<{ data: AuthUser }>('/auth/me');
           set({ user: profile.data, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch {
-          // Refresh failed — keep existing user/auth state from localStorage
-          // so the dashboard can still render with cached data.
-          // The access token is already cleared by the API client.
-          set({ isLoading: false });
+          // Refresh failed — clear tokens so we don't keep retrying
+          api.setToken(null);
+          api.setRefreshToken(null);
+          set({ refreshToken: null, isLoading: false });
         }
       },
     }),
     {
       name: 'estateiq-auth',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated, isDemoMode: state.isDemoMode }),
+      partialize: (state) => ({ user: state.user, refreshToken: state.refreshToken, isAuthenticated: state.isAuthenticated, isDemoMode: state.isDemoMode }),
       onRehydrateStorage: () => (state) => {
         if (state?.isDemoMode) {
           api.setDemoMode(true);
+        }
+        // Restore refresh token to API client from persisted state
+        if (state?.refreshToken) {
+          api.setRefreshToken(state.refreshToken);
         }
       },
     },

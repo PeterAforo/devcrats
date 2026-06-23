@@ -7,6 +7,7 @@ interface FetchOptions extends RequestInit {
 
 class ApiClient {
   private accessToken: string | null = null;
+  private refreshTokenValue: string | null = null;
   private _demoModeOverride: boolean | null = null;
   private _refreshPromise: Promise<boolean> | null = null;
 
@@ -16,6 +17,14 @@ class ApiClient {
 
   getToken() {
     return this.accessToken;
+  }
+
+  setRefreshToken(token: string | null) {
+    this.refreshTokenValue = token;
+  }
+
+  getRefreshToken() {
+    return this.refreshTokenValue;
   }
 
   setDemoMode(demo: boolean) {
@@ -132,22 +141,29 @@ class ApiClient {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: this.refreshTokenValue }),
       });
 
       if (!response.ok) {
         this.accessToken = null;
+        this.refreshTokenValue = null;
         return false;
       }
 
       const data = await response.json();
       if (data.data?.accessToken) {
         this.accessToken = data.data.accessToken;
+        if (data.data?.refreshToken) {
+          this.refreshTokenValue = data.data.refreshToken;
+        }
         return true;
       }
       this.accessToken = null;
+      this.refreshTokenValue = null;
       return false;
     } catch {
       this.accessToken = null;
+      this.refreshTokenValue = null;
       return false;
     }
   }
