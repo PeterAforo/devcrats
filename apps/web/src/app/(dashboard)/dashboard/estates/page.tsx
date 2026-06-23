@@ -40,6 +40,7 @@ export default function EstatesPage() {
   const [showDetail, setShowDetail] = useState<Estate | null>(null);
   const [editEstate, setEditEstate] = useState<Estate | null>(null);
   const [form, setForm] = useState({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
 
   const { data: apiData } = useEstates();
@@ -95,9 +96,17 @@ export default function EstatesPage() {
     };
     createEstate.mutate(
       { name: form.name, address: form.address, latitude: form.lat, longitude: form.lng },
-      { onError: () => setLocalEstates([newEstate, ...localEstates]) },
+      {
+        onSuccess: (data: any) => {
+          if (logoFile && data?.data?.id) {
+            uploadLogo.mutate({ id: data.data.id, file: logoFile });
+          }
+        },
+        onError: () => setLocalEstates([newEstate, ...localEstates]),
+      },
     );
     setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
+    setLogoFile(null);
     setShowAdd(false);
   };
 
@@ -125,7 +134,7 @@ export default function EstatesPage() {
           <h1 className="text-3xl font-heading font-bold">Estates</h1>
           <p className="text-muted-foreground mt-1">Manage your estate portfolio</p>
         </div>
-        <Button className="gap-2" onClick={() => { setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' }); setShowAdd(true); }}>
+        <Button className="gap-2" onClick={() => { setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' }); setLogoFile(null); setShowAdd(true); }}>
           <Plus className="h-4 w-4" /> Add Estate
         </Button>
       </div>
@@ -207,6 +216,34 @@ export default function EstatesPage() {
             <div className="space-y-2">
               <Label>Owner / Landlord</Label>
               <Input placeholder="e.g. Nana Akufo-Mensah" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Estate Logo</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/50">
+                  {logoFile ? (
+                    <img src={URL.createObjectURL(logoFile)} alt="Logo preview" className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border cursor-pointer hover:bg-muted transition-colors">
+                    <Upload className="h-3.5 w-3.5" />
+                    {logoFile ? logoFile.name : 'Upload Logo'}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setLogoFile(file);
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1">Optional: Used on receipts and documents</p>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
