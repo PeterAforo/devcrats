@@ -84,18 +84,18 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
 }
 
 export default async function handler(req: any, res: any) {
-  console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
-  if (req.body) {
-    console.log('Request body:', req.body);
-  }
-  
-  // Always set CORS headers directly on the response object
+  // Always set CORS headers FIRST - before any other processing
   const origin = req.headers?.origin || req.headers?.Origin;
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  }
+
+  console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
+  if (req.body) {
+    console.log('Request body:', req.body);
   }
 
   // Handle preflight immediately
@@ -114,6 +114,11 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error('Serverless Handler Error:', error);
     console.error('Error stack:', error.stack);
+    // Ensure CORS headers are set on error response
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(500).json({
       error: 'Internal server error',
       message: error.message,
