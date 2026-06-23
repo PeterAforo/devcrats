@@ -136,6 +136,9 @@ class ApiClient {
   }
 
   private async _doRefresh(): Promise<boolean> {
+    if (!this.refreshTokenValue) {
+      return false;
+    }
     try {
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',

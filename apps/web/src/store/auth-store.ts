@@ -100,6 +100,11 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           return;
         }
+        // No refresh token available — skip the network call
+        if (!api.getRefreshToken()) {
+          set({ isLoading: false });
+          return;
+        }
         try {
           const res = await api.post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken: api.getRefreshToken() });
           api.setToken(res.data.accessToken);
