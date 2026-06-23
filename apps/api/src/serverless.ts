@@ -98,6 +98,12 @@ export default async function handler(req: any, res: any) {
   }
 
   console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
+  console.log('Request keys:', Object.keys(req));
+  console.log('req.body:', req.body);
+  console.log('req.rawBody:', (req as any).rawBody);
+  console.log('req._body:', (req as any)._body);
+  console.log('req.payload:', (req as any).payload);
+  
   if ((req as any).rawBody) {
     console.log('Raw body:', (req as any).rawBody.toString());
   }
