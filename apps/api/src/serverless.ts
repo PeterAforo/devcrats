@@ -98,17 +98,25 @@ export default async function handler(req: any, res: any) {
   }
 
   console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
-  console.log('Request keys:', Object.keys(req));
-  console.log('req.body:', req.body);
-  console.log('req.rawBody:', (req as any).rawBody);
-  console.log('req._body:', (req as any)._body);
-  console.log('req.payload:', (req as any).payload);
   
-  if ((req as any).rawBody) {
-    console.log('Raw body:', (req as any).rawBody.toString());
-  }
+  // In Vercel, body might come as a stream or already parsed
   if (req.body) {
-    console.log('Parsed body:', req.body);
+    console.log('req.body type:', typeof req.body);
+    console.log('req.body value:', JSON.stringify(req.body));
+  } else {
+    console.log('req.body is undefined, reading from stream...');
+    // Try to read from stream
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const body = Buffer.concat(chunks).toString();
+    console.log('Stream body:', body);
+    try {
+      req.body = JSON.parse(body);
+    } catch (e) {
+      console.log('Failed to parse stream body as JSON');
+    }
   }
 
   // Handle preflight immediately
