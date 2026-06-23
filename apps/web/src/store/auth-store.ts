@@ -101,6 +101,9 @@ export const useAuthStore = create<AuthState>()(
           const profile = await api.get<{ data: AuthUser }>('/auth/me');
           set({ user: profile.data, isAuthenticated: true, isLoading: false, isDemoMode: false });
         } catch {
+          // Refresh failed — keep existing user/auth state from localStorage
+          // so the dashboard can still render with cached data.
+          // The access token is already cleared by the API client.
           set({ isLoading: false });
         }
       },

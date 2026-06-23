@@ -8,6 +8,7 @@ interface FetchOptions extends RequestInit {
 class ApiClient {
   private accessToken: string | null = null;
   private _demoModeOverride: boolean | null = null;
+  private _refreshPromise: Promise<boolean> | null = null;
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -73,7 +74,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${error.message || 'Request failed'}`);
     }
 
     return response.json();
@@ -112,6 +113,20 @@ class ApiClient {
   }
 
   private async refreshToken(): Promise<boolean> {
+    // Deduplicate concurrent refresh attempts
+    if (this._refreshPromise) {
+      return this._refreshPromise;
+    }
+
+    this._refreshPromise = this._doRefresh();
+    try {
+      return await this._refreshPromise;
+    } finally {
+      this._refreshPromise = null;
+    }
+  }
+
+  private async _doRefresh(): Promise<boolean> {
     try {
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
@@ -119,15 +134,20 @@ class ApiClient {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (!response.ok) return false;
+      if (!response.ok) {
+        this.accessToken = null;
+        return false;
+      }
 
       const data = await response.json();
       if (data.data?.accessToken) {
         this.accessToken = data.data.accessToken;
         return true;
       }
+      this.accessToken = null;
       return false;
     } catch {
+      this.accessToken = null;
       return false;
     }
   }

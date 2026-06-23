@@ -12,7 +12,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000,
-            retry: 1,
+            retry: (failureCount, error) => {
+              // Don't retry auth errors — the API client handles refresh internally
+              if (error instanceof Error && error.message.includes('401')) return false;
+              return failureCount < 1;
+            },
             refetchOnWindowFocus: false,
           },
         },
