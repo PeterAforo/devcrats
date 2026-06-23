@@ -24,17 +24,7 @@ interface Estate {
   logoUrl?: string;
 }
 
-const initialEstates: Estate[] = [
-  { id: '1', name: 'East Legon Hills Estate', address: '14 Boundary Road, East Legon, Accra', units: 32, occupancy: 94, buildings: 2, status: 'active', lat: 5.6364, lng: -0.1572, owner: 'Nana Akufo-Mensah' },
-  { id: '2', name: 'Cantonments Residences', address: '7 Switchback Lane, Cantonments, Accra', units: 48, occupancy: 88, buildings: 3, status: 'active', lat: 5.5780, lng: -0.1780, owner: 'Dr. Kweku Agyemang' },
-  { id: '3', name: 'Kumasi Royal Gardens', address: '23 Harper Road, Ahodwo, Kumasi', units: 64, occupancy: 76, buildings: 4, status: 'active', lat: 6.6885, lng: -1.6244, owner: 'Mrs. Efua Appiah' },
-  { id: '4', name: 'Tema Community 25', address: 'Plot 12, Comm. 25, Tema', units: 24, occupancy: 92, buildings: 2, status: 'active', lat: 5.6698, lng: -0.0166, owner: 'Nana Akufo-Mensah' },
-  { id: '5', name: 'Airport Residential Towers', address: '3 Aviation Road, Airport Residential, Accra', units: 20, occupancy: 100, buildings: 1, status: 'active', lat: 5.6052, lng: -0.1715, owner: 'Dr. Kweku Agyemang' },
-  { id: '6', name: 'Trasacco Valley Estate', address: '1 Trasacco Drive, East Legon, Accra', units: 16, occupancy: 87, buildings: 1, status: 'maintenance', lat: 5.6350, lng: -0.1450, owner: 'Nana Akufo-Mensah' },
-];
-
 export default function EstatesPage() {
-  const [localEstates, setLocalEstates] = useState<Estate[]>(initialEstates);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showDetail, setShowDetail] = useState<Estate | null>(null);
@@ -43,26 +33,23 @@ export default function EstatesPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
 
-  const { data: apiData } = useEstates();
+  const { data: apiData, isLoading } = useEstates();
   const createEstate = useCreateEstate();
   const uploadLogo = useUploadEstateLogo();
 
-  // API data takes priority over local mock
-  const estates: Estate[] = apiData?.data
-    ? apiData.data.map((e: any) => ({
-        id: e.id,
-        name: e.name,
-        address: e.address || '',
-        units: e._count?.units || 0,
-        occupancy: e.occupancyRate || 0,
-        buildings: e._count?.buildings || 0,
-        status: e.deletedAt ? 'maintenance' : 'active',
-        lat: e.latitude,
-        lng: e.longitude,
-        owner: e.createdByUser?.firstName ? `${e.createdByUser.firstName} ${e.createdByUser.lastName}` : undefined,
-        logoUrl: e.logoUrl,
-      }))
-    : localEstates;
+  const estates: Estate[] = apiData?.data?.map((e: any) => ({
+    id: e.id,
+    name: e.name,
+    address: e.address || '',
+    units: e._count?.units || 0,
+    occupancy: e.occupancyRate || 0,
+    buildings: e._count?.buildings || 0,
+    status: e.deletedAt ? 'maintenance' : 'active',
+    lat: e.latitude,
+    lng: e.longitude,
+    owner: e.createdByUser?.firstName ? `${e.createdByUser.firstName} ${e.createdByUser.lastName}` : undefined,
+    logoUrl: e.logoUrl,
+  })) || [];
 
   const captureGPS = () => {
     if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
@@ -82,18 +69,6 @@ export default function EstatesPage() {
   );
 
   const handleAdd = () => {
-    const newEstate: Estate = {
-      id: Date.now().toString(),
-      name: form.name,
-      address: form.address,
-      buildings: form.buildings,
-      units: form.units,
-      occupancy: 0,
-      status: 'active',
-      lat: form.lat || undefined,
-      lng: form.lng || undefined,
-      owner: form.owner || undefined,
-    };
     createEstate.mutate(
       { name: form.name, address: form.address, latitude: form.lat, longitude: form.lng },
       {
@@ -102,7 +77,6 @@ export default function EstatesPage() {
             uploadLogo.mutate({ id: data.data.id, file: logoFile });
           }
         },
-        onError: () => setLocalEstates([newEstate, ...localEstates]),
       },
     );
     setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
@@ -112,13 +86,11 @@ export default function EstatesPage() {
 
   const handleEdit = () => {
     if (!editEstate) return;
-    setLocalEstates(localEstates.map((e) => (e.id === editEstate.id ? { ...editEstate, ...form } : e)));
     setEditEstate(null);
     setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
   };
 
   const handleDelete = (id: string) => {
-    setLocalEstates(localEstates.filter((e) => e.id !== id));
     setShowDetail(null);
   };
 
@@ -146,8 +118,13 @@ export default function EstatesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((estate) => (
+      {isLoading ? (
+        <div className="py-8 text-center text-muted-foreground">Loading estates...</div>
+      ) : filtered.length === 0 ? (
+        <div className="py-8 text-center text-muted-foreground">No estates found. Click "Add Estate" to get started.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((estate) => (
           <Card key={estate.id} className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={() => setShowDetail(estate)}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
@@ -195,7 +172,8 @@ export default function EstatesPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Add Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>

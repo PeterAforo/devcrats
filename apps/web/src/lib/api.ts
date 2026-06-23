@@ -94,10 +94,12 @@ class ApiClient {
   }
 
   async post<T = any>(endpoint: string, data?: any, options?: FetchOptions): Promise<T> {
+    const isFormData = data instanceof FormData;
     return this.fetch<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data,
+      headers: isFormData ? { ...(options?.headers as Record<string, string>), 'Content-Type': 'multipart/form-data' } : options?.headers,
     });
   }
 

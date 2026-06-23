@@ -55,11 +55,9 @@ export function useUploadEstateLogo() {
     mutationFn: ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData();
       formData.append('file', file);
-      return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1'}/estates/${id}/logo`, {
-        method: 'POST',
-        body: formData,
-        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
-      }).then((r) => r.json());
+      return api.post(`/estates/${id}/logo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['estates'] });
