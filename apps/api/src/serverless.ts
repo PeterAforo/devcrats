@@ -39,7 +39,11 @@ const server = express();
 server.use(cors(corsOptions));
 
 // Body parser middleware - must be before NestJS
-server.use(express.json({ limit: '10mb' }));
+server.use(express.json({ limit: '10mb', verify: (req, res, buf) => {
+  // Store raw body for debugging
+  (req as any).rawBody = buf;
+  return true;
+}}));
 server.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 let cachedApp: NestExpressApplication;
@@ -94,8 +98,11 @@ export default async function handler(req: any, res: any) {
   }
 
   console.log('Incoming request:', { method: req.method, url: req.url, contentType: req.headers['content-type'] });
+  if ((req as any).rawBody) {
+    console.log('Raw body:', (req as any).rawBody.toString());
+  }
   if (req.body) {
-    console.log('Request body:', req.body);
+    console.log('Parsed body:', req.body);
   }
 
   // Handle preflight immediately
