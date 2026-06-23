@@ -52,6 +52,7 @@ const adminNav: NavGroup[] = [
     { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
     { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
     { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
+    { label: 'Gate Access', href: '/dashboard/gate-access', icon: Shield },
     { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
   ]},
   { category: 'System', items: [
@@ -83,6 +84,7 @@ const managerNav: NavGroup[] = [
     { label: 'Complaints', href: '/dashboard/complaints', icon: MessageSquareWarning },
     { label: 'Staff & Vendors', href: '/dashboard/staff', icon: UserCog },
     { label: 'Visitors', href: '/dashboard/visitors', icon: DoorOpen },
+    { label: 'Gate Access', href: '/dashboard/gate-access', icon: Shield },
     { label: 'Utilities', href: '/dashboard/utilities', icon: Zap },
   ]},
   { category: 'System', items: [

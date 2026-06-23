@@ -174,3 +174,78 @@ class ApiClient {
 
 export const api = new ApiClient();
 export default api;
+
+// ─── GATE ACCESS API METHODS ─────────────────────────────────────
+
+export const gateAccessApi = {
+  // Gates
+  createGate: (data: any) => api.post('/gate-access/gates', data),
+  getGates: (estateId?: string) => api.get(`/gate-access/gates${estateId ? `?estateId=${estateId}` : ''}`),
+  updateGate: (id: string, data: any) => api.put(`/gate-access/gates/${id}`, data),
+  deleteGate: (id: string) => api.delete(`/gate-access/gates/${id}`),
+
+  // Guard Shifts
+  startShift: (data: any) => api.post('/gate-access/shifts/start', data),
+  endShift: (id: string) => api.post(`/gate-access/shifts/${id}/end`),
+  getActiveShifts: (estateId?: string) => api.get(`/gate-access/shifts/active${estateId ? `?estateId=${estateId}` : ''}`),
+  getShiftHistory: (estateId?: string, page = 1, limit = 20) =>
+    api.get(`/gate-access/shifts/history?estateId=${estateId}&page=${page}&limit=${limit}`),
+
+  // Access Passes
+  createAccessPass: (data: any) => api.post('/gate-access/passes', data),
+  verifyAccessPass: (pin: string) => api.get(`/gate-access/passes/verify/${pin}`),
+  getAccessPasses: (estateId?: string, page = 1, limit = 20) =>
+    api.get(`/gate-access/passes?estateId=${estateId}&page=${page}&limit=${limit}`),
+  revokeAccessPass: (id: string) => api.put(`/gate-access/passes/${id}/revoke`),
+  updateAccessPass: (id: string, data: any) => api.put(`/gate-access/passes/${id}`, data),
+
+  // Gate Operations
+  checkInViaInvite: (inviteId: string, gateId: string) =>
+    api.post(`/gate-access/check-in/invite/${inviteId}`, { gateId }),
+  checkInViaPass: (passId: string, gateId: string) =>
+    api.post(`/gate-access/check-in/pass/${passId}`, { gateId }),
+  checkInWalkIn: (data: any) => api.post('/gate-access/check-in/walk-in', data),
+  checkOut: (gateLogId: string) => api.post(`/gate-access/check-out/${gateLogId}`),
+
+  // Gate Logs
+  getGateLogs: (estateId?: string, filters?: { page?: number; limit?: number; personType?: string; gateId?: string; activeOnly?: boolean }) => {
+    const params = new URLSearchParams();
+    if (estateId) params.append('estateId', estateId);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.personType) params.append('personType', filters.personType);
+    if (filters?.gateId) params.append('gateId', filters.gateId);
+    if (filters?.activeOnly) params.append('activeOnly', 'true');
+    return api.get(`/gate-access/logs?${params.toString()}`);
+  },
+  getActiveVisitors: (estateId?: string) => api.get(`/gate-access/logs/active${estateId ? `?estateId=${estateId}` : ''}`),
+  getGateStats: (estateId?: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (estateId) params.append('estateId', estateId);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return api.get(`/gate-access/logs/stats?${params.toString()}`);
+  },
+
+  // Vehicles
+  registerVehicle: (data: any) => api.post('/gate-access/vehicles', data),
+  findVehicleByPlate: (plate: string, estateId?: string) =>
+    api.get(`/gate-access/vehicles/lookup/${plate}${estateId ? `?estateId=${estateId}` : ''}`),
+  getVehicles: (estateId?: string, page = 1, limit = 20) =>
+    api.get(`/gate-access/vehicles?estateId=${estateId}&page=${page}&limit=${limit}`),
+  updateVehicle: (id: string, data: any) => api.put(`/gate-access/vehicles/${id}`, data),
+  deleteVehicle: (id: string) => api.delete(`/gate-access/vehicles/${id}`),
+
+  // Blacklist
+  addToBlacklist: (data: any) => api.post('/gate-access/blacklist', data),
+  removeFromBlacklist: (id: string) => api.delete(`/gate-access/blacklist/${id}`),
+  checkBlacklist: (estateId?: string, name?: string, phone?: string) => {
+    const params = new URLSearchParams();
+    if (estateId) params.append('estateId', estateId);
+    if (name) params.append('name', name);
+    if (phone) params.append('phone', phone);
+    return api.get(`/gate-access/blacklist/check?${params.toString()}`);
+  },
+  getBlacklist: (estateId?: string, page = 1, limit = 20) =>
+    api.get(`/gate-access/blacklist?estateId=${estateId}&page=${page}&limit=${limit}`),
+};
