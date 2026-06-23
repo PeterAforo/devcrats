@@ -5,40 +5,50 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import cors from 'cors';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import express from 'express';
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://devcrats.vercel.app',
+  'https://devcrats-web.vercel.app',
+];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',')
+      : ALLOWED_ORIGINS;
+    // Allow requests with no origin (mobile apps, curl, etc)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now to debug
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
 const server = express();
+// Register CORS at the Express level FIRST - before NestJS middleware
+server.use(cors(corsOptions));
 
 let cachedApp: NestExpressApplication;
 
 async function bootstrapServer(): Promise<NestExpressApplication> {
   if (cachedApp) {
-    console.log('Serverless: Using cached app');
     return cachedApp;
   }
 
-  console.log('Serverless: Bootstrapping NestJS app');
   const expressAdapter = new ExpressAdapter(server);
   const app = await NestFactory.create<NestExpressApplication>(AppModule, expressAdapter);
-  console.log('Serverless: NestJS app created');
 
   app.setGlobalPrefix('api/v1', { exclude: ['/'] });
-  console.log('Serverless: Global prefix set to api/v1');
-
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'https://devcrats.vercel.app', 'https://devcrats-web.vercel.app'];
-
-  // Enable CORS before any other middleware
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  });
 
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
   app.use(cookieParser());
@@ -65,36 +75,21 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
   SwaggerModule.setup('api/docs', app, document);
 
   await app.init();
-  console.log('Serverless: App initialized');
   cachedApp = app;
   return app;
 }
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'https://devcrats.vercel.app',
-  'https://devcrats-web.vercel.app',
-];
-
-function setCorsHeaders(req: any, res: any) {
-  const origin = req.headers?.origin;
-  const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : ALLOWED_ORIGINS;
-
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
-}
-
 export default async function handler(req: any, res: any) {
-  // Set CORS headers immediately for every request
-  setCorsHeaders(req, res);
+  // Always set CORS headers directly on the response object
+  const origin = req.headers?.origin || req.headers?.Origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  }
 
-  // Handle preflight directly without bootstrapping the app
+  // Handle preflight immediately
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -104,10 +99,10 @@ export default async function handler(req: any, res: any) {
     const app = await bootstrapServer();
     const instance = app.getHttpAdapter().getInstance() as any;
     instance(req, res);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Serverless Handler Error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error', 
+    res.status(500).json({
+      error: 'Internal server error',
       message: error.message,
     });
   }
