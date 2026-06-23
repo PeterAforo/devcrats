@@ -58,7 +58,7 @@ class ApiClient {
 
     console.log('API Fetch: Response', { status: response.status, ok: response.ok });
 
-    if (response.status === 401) {
+    if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
       const refreshed = await this.refreshToken();
       if (refreshed) {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
