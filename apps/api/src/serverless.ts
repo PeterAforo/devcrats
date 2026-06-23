@@ -38,6 +38,10 @@ const server = express();
 // Register CORS at the Express level FIRST - before NestJS middleware
 server.use(cors(corsOptions));
 
+// Body parser middleware - must be before NestJS
+server.use(express.json({ limit: '10mb' }));
+server.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 let cachedApp: NestExpressApplication;
 
 async function bootstrapServer(): Promise<NestExpressApplication> {
