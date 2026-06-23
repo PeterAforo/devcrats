@@ -76,28 +76,33 @@ export class AuthController {
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
   ) {
-    // Accept refresh token from body (cross-origin) or cookie (same-origin fallback)
-    const refreshToken = body?.refreshToken || req.cookies?.['refresh_token'];
-    if (!refreshToken) {
-      return res.status(401).json({ success: false, message: 'No refresh token' });
+    try {
+      // Accept refresh token from body (cross-origin) or cookie (same-origin fallback)
+      const refreshToken = body?.refreshToken || req.cookies?.['refresh_token'];
+      if (!refreshToken) {
+        return res.status(401).json({ success: false, message: 'No refresh token' });
+      }
+
+      const tokens = await this.authService.refreshTokens(refreshToken);
+
+      // Set cookie as fallback for same-origin setups
+      res.cookie('refresh_token', tokens.refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/v1/auth',
+      });
+
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+      };
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
-
-    const tokens = await this.authService.refreshTokens(refreshToken);
-
-    // Set cookie as fallback for same-origin setups
-    res.cookie('refresh_token', tokens.refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth',
-    });
-
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      expiresIn: tokens.expiresIn,
-    };
   }
 
   @Post('logout')
