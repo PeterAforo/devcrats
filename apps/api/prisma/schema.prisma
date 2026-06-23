@@ -268,6 +268,7 @@ model Unit {
   feeAssignments UnitFeeAssignment[]
   invoices      Invoice[]
   serviceRequests ServiceRequest[]
+  vehicles      Vehicle[]
   complaints    Complaint[]
   meters        Meter[]
   documents     Document[]
@@ -1353,6 +1354,7 @@ model Vehicle {
   deletedAt DateTime? @map("deleted_at")
 
   estate Estate @relation(fields: [estateId], references: [id])
+  unit   Unit?  @relation(fields: [unitId], references: [id])
 
   @@index([estateId])
   @@index([licensePlate])
