@@ -69,8 +69,11 @@ export class ReceiptsService {
     });
   }
 
-  async findAll(page = 1, limit = 20, search?: string) {
+  async findAll(page = 1, limit = 20, search?: string, estateId?: string) {
     const where: any = {};
+    if (estateId) {
+      where.payment = { invoice: { estateId } };
+    }
     if (search) {
       where.OR = [
         { number: { contains: search, mode: 'insensitive' } },

@@ -12,6 +12,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class ReceiptsController {
   constructor(private readonly receiptsService: ReceiptsService) {}
 
+  /** super_admin can use query param or see all; others scoped to their estate */
+  private resolveEstateId(role: string, userEstateId?: string, queryEstateId?: string): string | undefined {
+    if (role === 'super_admin') return queryEstateId;
+    return userEstateId;
+  }
+
   @Post('receipts')
   @Roles('super_admin', 'estate_manager')
   @ApiOperation({ summary: 'Generate a receipt for a payment' })
@@ -26,12 +32,17 @@ export class ReceiptsController {
   @ApiOperation({ summary: 'List all receipts' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'estateId', required: false })
   findAll(
+    @CurrentUser('role') role: string,
+    @CurrentUser('estateId') userEstateId: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
+    @Query('estateId') queryEstateId?: string,
   ) {
-    return this.receiptsService.findAll(page || 1, limit || 20, search);
+    const estateId = this.resolveEstateId(role, userEstateId, queryEstateId);
+    return this.receiptsService.findAll(page || 1, limit || 20, search, estateId);
   }
 
   @Get('receipts/:id')

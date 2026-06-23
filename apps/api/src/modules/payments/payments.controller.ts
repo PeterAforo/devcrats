@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto, CreateInvoiceDto } from './dto';
@@ -19,10 +19,27 @@ export class PaymentsController {
     private readonly config: ConfigService,
   ) {}
 
+  /** super_admin can use query param or see all; others scoped to their estate */
+  private resolveEstateId(role: string, userEstateId?: string, queryEstateId?: string): string | undefined {
+    if (role === 'super_admin') return queryEstateId;
+    return userEstateId;
+  }
+
   @Post('invoices')
   @Roles('super_admin', 'estate_manager')
   @ApiOperation({ summary: 'Create invoice' })
-  createInvoice(@Body() dto: CreateInvoiceDto, @CurrentUser('id') userId: string) {
+  createInvoice(
+    @Body() dto: CreateInvoiceDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('estateId') userEstateId: string,
+  ) {
+    if (role !== 'super_admin') {
+      dto.estateId = userEstateId;
+    }
+    if (!dto.estateId) {
+      throw new ForbiddenException('estateId is required');
+    }
     return this.paymentsService.createInvoice(dto, userId);
   }
 
@@ -32,11 +49,14 @@ export class PaymentsController {
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'page', required: false })
   findAllInvoices(
-    @Query('estateId') estateId?: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('estateId') userEstateId: string,
+    @Query('estateId') queryEstateId?: string,
     @Query('status') status?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
+    const estateId = this.resolveEstateId(role, userEstateId, queryEstateId);
     return this.paymentsService.findAllInvoices(estateId, status, page || 1, limit || 20);
   }
 
@@ -57,16 +77,26 @@ export class PaymentsController {
   @ApiQuery({ name: 'estateId', required: false })
   @ApiQuery({ name: 'page', required: false })
   findAllPayments(
-    @Query('estateId') estateId?: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('estateId') userEstateId: string,
+    @Query('estateId') queryEstateId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
+    const estateId = this.resolveEstateId(role, userEstateId, queryEstateId);
     return this.paymentsService.findAllPayments(estateId, page || 1, limit || 20);
   }
 
   @Get('payments/stats/:estateId')
   @ApiOperation({ summary: 'Get payment statistics' })
-  getStats(@Param('estateId') estateId: string) {
+  getStats(
+    @Param('estateId') estateId: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('estateId') userEstateId: string,
+  ) {
+    if (role !== 'super_admin' && userEstateId !== estateId) {
+      throw new ForbiddenException('Cannot access stats for another estate');
+    }
     return this.paymentsService.getPaymentStats(estateId);
   }
 
