@@ -286,6 +286,17 @@ export function useCheckInVisitor() {
   });
 }
 
+export function useCheckOutVisitor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (gateLogId: string) => api.put(`/visitors/check-out/${gateLogId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['visitor-invites'] });
+      qc.invalidateQueries({ queryKey: ['gate-logs'] });
+    },
+  });
+}
+
 export function useGateLogs(estateId: string, page = 1) {
   return useQuery({
     queryKey: ['gate-logs', estateId, page],

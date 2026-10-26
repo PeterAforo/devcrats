@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useVisitorInvites, useCreateVisitorInvite, useCheckInVisitor } from '@/lib/hooks';
+import { useVisitorInvites, useCreateVisitorInvite, useCheckInVisitor, useCheckOutVisitor, useEstates, useTenants, useMyTenantProfile } from '@/lib/hooks';
+import { useAuthStore } from '@/store/auth-store';
+import { toast } from 'sonner';
 
 interface Visitor {
   id: string;
@@ -24,6 +26,7 @@ interface Visitor {
   checkIn: string;
   checkOut: string;
   status: string;
+  gateLogId?: string;
 }
 
 const initialVisitors: Visitor[] = [
@@ -46,29 +49,42 @@ export default function VisitorsPage() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showDetail, setShowDetail] = useState<Visitor | null>(null);
-  const [form, setForm] = useState({ name: '', phone: '', address: '', nationalId: '', host: '', purpose: 'Personal Visit', vehicle: '' });
+  const [form, setForm] = useState({ name: '', phone: '', address: '', nationalId: '', tenantId: '', expectedArrival: '', purpose: 'Personal Visit', vehicle: '' });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [maximizedPhoto, setMaximizedPhoto] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: apiData } = useVisitorInvites();
+  const user = useAuthStore((s) => s.user);
+  const isTenant = user?.role === 'tenant';
+  const [pickedEstateId, setPickedEstateId] = useState('');
+  const { data: estatesData } = useEstates();
+  const { data: myTenant } = useMyTenantProfile();
+  const estates: any[] = estatesData?.data || [];
+  const estateId = user?.estateId || pickedEstateId || estates[0]?.id || '';
+  const tenantProfile = isTenant ? myTenant?.data : null;
+
+  const { data: apiData } = useVisitorInvites(estateId || undefined);
+  const { data: tenantsData } = useTenants(estateId || undefined);
+  const tenantList: any[] = tenantsData?.data || [];
   const createInvite = useCreateVisitorInvite();
   const checkInVisitor = useCheckInVisitor();
+  const checkOutVisitor = useCheckOutVisitor();
 
   const visitors: Visitor[] = apiData?.data
     ? apiData.data.map((v: any) => ({
         id: v.id,
         name: v.visitorName,
-        phone: v.phone || '—',
+        phone: v.visitorPhone || v.phone || '—',
         address: v.address || '—',
         nationalId: v.nationalId || '',
         photoUrl: v.photoUrl || '',
-        host: v.host?.user ? `${v.host.user.firstName} ${v.host.user.lastName}` : v.hostName || '—',
+        host: v.tenant?.user ? `${v.tenant.user.firstName} ${v.tenant.user.lastName}` : '—',
         purpose: v.purpose || 'Visit',
         vehicle: v.vehiclePlate || '—',
-        checkIn: v.checkInTime ? new Date(v.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
-        checkOut: v.checkOutTime ? new Date(v.checkOutTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
-        status: v.status || 'expected',
+        checkIn: v.gateLog?.entryTime ? new Date(v.gateLog.entryTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
+        checkOut: v.gateLog?.exitTime ? new Date(v.gateLog.exitTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
+        status: v.gateLog ? (v.gateLog.exitTime ? 'checked_out' : 'checked_in') : v.isUsed ? 'checked_in' : 'expected',
+        gateLogId: v.gateLog?.id,
       }))
     : localVisitors;
 
@@ -86,28 +102,26 @@ export default function VisitorsPage() {
   };
 
   const handleAdd = () => {
-    const newVisitor: Visitor = {
-      id: Date.now().toString(),
-      name: form.name,
-      phone: form.phone || '—',
-      address: form.address || '—',
-      nationalId: form.nationalId,
-      photoUrl: photoPreview || '',
-      host: form.host,
-      purpose: form.purpose,
-      vehicle: form.vehicle || '—',
-      checkIn: '—',
-      checkOut: '—',
-      status: 'expected',
-    };
+    const tenantId = tenantProfile?.id || form.tenantId;
     createInvite.mutate(
-      { visitorName: form.name, purpose: form.purpose, vehiclePlate: form.vehicle, estateId: '' },
-      { onError: () => setLocalVisitors([newVisitor, ...localVisitors]) },
+      {
+        visitorName: form.name,
+        visitorPhone: form.phone || undefined,
+        purpose: form.purpose,
+        expectedArrival: form.expectedArrival || new Date().toISOString(),
+        estateId,
+        tenantId,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Visitor pre-registered');
+          setForm({ name: '', phone: '', address: '', nationalId: '', tenantId: '', expectedArrival: '', purpose: 'Personal Visit', vehicle: '' });
+          setPhotoPreview(null);
+          setShowAdd(false);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to register visitor'),
+      },
     );
-    setLocalVisitors([newVisitor, ...localVisitors]);
-    setForm({ name: '', phone: '', address: '', nationalId: '', host: '', purpose: 'Personal Visit', vehicle: '' });
-    setPhotoPreview(null);
-    setShowAdd(false);
   };
 
   const handleCheckIn = (id: string) => {
@@ -117,10 +131,16 @@ export default function VisitorsPage() {
     if (showDetail?.id === id) setShowDetail({ ...showDetail, status: 'checked_in', checkIn: now });
   };
 
-  const handleCheckOut = (id: string) => {
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    setLocalVisitors(localVisitors.map((v) => v.id === id ? { ...v, status: 'checked_out', checkOut: now } : v));
-    if (showDetail?.id === id) setShowDetail({ ...showDetail, status: 'checked_out', checkOut: now });
+  const handleCheckOut = (v: Visitor) => {
+    if (!v.gateLogId) return toast.error('No active gate log for this visitor');
+    checkOutVisitor.mutate(v.gateLogId, {
+      onSuccess: () => {
+        toast.success(`${v.name} checked out`);
+        const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        if (showDetail?.id === v.id) setShowDetail({ ...showDetail, status: 'checked_out', checkOut: now });
+      },
+      onError: (e: any) => toast.error(e.message || 'Check-out failed'),
+    });
   };
 
   return (
@@ -210,6 +230,15 @@ export default function VisitorsPage() {
             <DialogDescription>Register an expected visitor for today.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {!user?.estateId && (
+              <div className="space-y-2">
+                <Label>Estate *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={pickedEstateId} onChange={(e) => setPickedEstateId(e.target.value)}>
+                  <option value="">Select estate...</option>
+                  {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+                </select>
+              </div>
+            )}
             {/* Photo capture */}
             <div className="flex items-center gap-4">
               <div
@@ -250,10 +279,26 @@ export default function VisitorsPage() {
                 <Label className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" /> National ID <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Input placeholder="e.g. GHA-000111222-3" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
               </div>
-              <div className="space-y-2"><Label>Host (Resident) *</Label><Input placeholder="e.g. Kwame Asante (A-101)" value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} /></div>
+              <div className="space-y-2">
+                <Label>Host (Resident) *</Label>
+                {isTenant ? (
+                  <Input value={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()} disabled className="opacity-60" />
+                ) : (
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })}>
+                    <option value="">Select tenant...</option>
+                    {tenantList.map((t: any) => (
+                      <option key={t.id} value={t.id}>{t.user?.firstName} {t.user?.lastName}{t.leases?.[0]?.unit?.unitNumber ? ` (${t.leases[0].unit.unitNumber})` : ''}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Expected Arrival *</Label>
+                <Input type="datetime-local" value={form.expectedArrival} onChange={(e) => setForm({ ...form, expectedArrival: e.target.value })} />
+              </div>
               <div className="space-y-2">
                 <Label>Purpose</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })}>
@@ -265,7 +310,7 @@ export default function VisitorsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={!form.name || !form.host || !form.phone || !form.address}>Register</Button>
+            <Button onClick={handleAdd} disabled={!form.name || (!isTenant && !form.tenantId) || !form.expectedArrival || !estateId || createInvite.isPending}>Register</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -309,7 +354,7 @@ export default function VisitorsPage() {
                   <Button size="sm" className="gap-2" onClick={() => handleCheckIn(showDetail.id)}><CheckCircle2 className="h-4 w-4" /> Check In</Button>
                 )}
                 {showDetail.status === 'checked_in' && (
-                  <Button size="sm" variant="outline" className="gap-2" onClick={() => handleCheckOut(showDetail.id)}><XCircle className="h-4 w-4" /> Check Out</Button>
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => handleCheckOut(showDetail)}><XCircle className="h-4 w-4" /> Check Out</Button>
                 )}
               </div>
             </div>

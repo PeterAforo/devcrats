@@ -13,7 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { useTenants, useLandlords, useCreateTenant, useCreateLandlord } from '@/lib/hooks';
+import { useTenants, useLandlords, useCreateTenant, useCreateLandlord, useEstates } from '@/lib/hooks';
+import { useAuthStore } from '@/store/auth-store';
+import { toast } from 'sonner';
 
 type TenantType = 'single' | 'family' | 'company';
 
@@ -106,8 +108,13 @@ export default function PersonsPage() {
       }))
     : localLandlords;
 
+  const user = useAuthStore((s) => s.user);
+  const [pickedEstateId, setPickedEstateId] = useState('');
+  const { data: estatesData } = useEstates();
+  const estates: any[] = estatesData?.data || [];
+
   const [tForm, setTForm] = useState({
-    name: '', email: '', phone: '', unit: '', estate: '',
+    name: '', email: '', phone: '', unit: '', unitId: '', estate: '',
     leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single' as TenantType,
     nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '',
     idType: '' as string, idNumber: '', occupation: '', dateOfBirth: '',
@@ -118,39 +125,55 @@ export default function PersonsPage() {
   const filteredLandlords = landlords.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
 
   const handleAddTenant = () => {
-    const landlord = landlords.find((l) => l.id === tForm.landlordId);
-    const t: Tenant = {
-      id: 'T' + Date.now(),
-      name: tForm.name, email: tForm.email, phone: tForm.phone,
-      unit: tForm.unit, estate: tForm.estate, status: 'active',
-      leaseStart: tForm.leaseStart, leaseEnd: tForm.leaseEnd,
-      landlordId: tForm.landlordId, landlordName: landlord?.name || '',
-      tenantType: tForm.tenantType, nationality: tForm.nationality,
-      occupants: tForm.occupants, companyName: tForm.companyName || undefined,
-      emergencyContact: tForm.emergencyContact || undefined, notes: tForm.notes || undefined,
-    };
+    const rawLandlord = apiLandlords?.data?.find((l: any) => l.id === tForm.landlordId);
+    const estateId = user?.estateId || rawLandlord?.estateId || '';
     createTenantMut.mutate(
-      { firstName: tForm.name.split(' ')[0], lastName: tForm.name.split(' ').slice(1).join(' '), email: tForm.email, phone: tForm.phone, estateId: '', unitId: '', landlordId: tForm.landlordId, leaseStartDate: tForm.leaseStart, leaseEndDate: tForm.leaseEnd },
-      { onError: () => setLocalTenants([t, ...localTenants]) },
+      {
+        firstName: tForm.name.split(' ')[0],
+        lastName: tForm.name.split(' ').slice(1).join(' '),
+        email: tForm.email,
+        phone: tForm.phone,
+        estateId,
+        unitId: tForm.unitId,
+        landlordId: tForm.landlordId,
+        leaseStartDate: tForm.leaseStart,
+        leaseEndDate: tForm.leaseEnd,
+        nationality: tForm.nationality || undefined,
+        tenantType: tForm.tenantType,
+        occupants: tForm.occupants,
+        companyName: tForm.companyName || undefined,
+        emergencyContact: tForm.emergencyContact || undefined,
+        idType: tForm.idType || undefined,
+        idNumber: tForm.idNumber || undefined,
+        occupation: tForm.occupation || undefined,
+        dateOfBirth: tForm.dateOfBirth || undefined,
+      },
+      {
+        onSuccess: (res: any) => {
+          const creds = res?.data?.credentials;
+          toast.success(creds ? `Tenant registered. Temp password: ${creds.tempPassword}` : 'Tenant registered');
+          setTForm({ name: '', email: '', phone: '', unit: '', unitId: '', estate: '', leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single', nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '', idType: '', idNumber: '', occupation: '', dateOfBirth: '' });
+          setShowAddTenant(false);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to register tenant'),
+      },
     );
-    setTForm({ name: '', email: '', phone: '', unit: '', estate: '', leaseStart: '', leaseEnd: '', landlordId: '', tenantType: 'single', nationality: 'Ghanaian', occupants: 1, companyName: '', emergencyContact: '', notes: '', idType: '', idNumber: '', occupation: '', dateOfBirth: '' });
-    setShowAddTenant(false);
   };
 
   const handleAddLandlord = () => {
-    const l: Landlord = {
-      id: 'L' + Date.now(),
-      name: lForm.name, email: lForm.email, phone: lForm.phone,
-      properties: lForm.properties.split(',').map((p) => p.trim()).filter(Boolean),
-      bank: lForm.bank, status: 'active',
-    };
+    const estateId = user?.estateId || pickedEstateId || estates[0]?.id || '';
     createLandlordMut.mutate(
-      { firstName: lForm.name.split(' ')[0], lastName: lForm.name.split(' ').slice(1).join(' ') || lForm.name, email: lForm.email, phone: lForm.phone, estateId: '', bankName: lForm.bank },
-      { onError: () => {} },
+      { firstName: lForm.name.split(' ')[0], lastName: lForm.name.split(' ').slice(1).join(' ') || lForm.name, email: lForm.email, phone: lForm.phone, estateId, bankName: lForm.bank, idType: lForm.idType || undefined, idNumber: lForm.idNumber || undefined },
+      {
+        onSuccess: (res: any) => {
+          const creds = res?.data?.credentials;
+          toast.success(creds ? `Landlord registered. Temp password: ${creds.tempPassword}` : 'Landlord registered');
+          setLForm({ name: '', email: '', phone: '', properties: '', bank: '', idType: '', idNumber: '' });
+          setShowAddLandlord(false);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to register landlord'),
+      },
     );
-    setLocalLandlords([l, ...localLandlords]);
-    setLForm({ name: '', email: '', phone: '', properties: '', bank: '', idType: '', idNumber: '' });
-    setShowAddLandlord(false);
   };
 
   const handleDeleteTenant = (id: string) => {
@@ -356,23 +379,24 @@ export default function PersonsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Assign to Landlord</Label>
-                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={tForm.landlordId} onChange={(e) => setTForm({ ...tForm, landlordId: e.target.value })}>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={tForm.landlordId} onChange={(e) => setTForm({ ...tForm, landlordId: e.target.value, unitId: '', unit: '' })}>
                     <option value="">Select Landlord...</option>
                     {landlords.map((l) => (<option key={l.id} value={l.id}>{l.name}</option>))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Property / Estate</Label>
-                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={tForm.estate} onChange={(e) => setTForm({ ...tForm, estate: e.target.value })}>
-                    <option value="">Select Property...</option>
-                    {tForm.landlordId && landlords.find((l) => l.id === tForm.landlordId)?.properties.map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                  <Label>Unit / House</Label>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={tForm.unitId} disabled={!tForm.landlordId} onChange={(e) => {
+                    const u = apiLandlords?.data?.find((l: any) => l.id === tForm.landlordId)?.properties?.find((p: any) => p.unit?.id === e.target.value)?.unit;
+                    setTForm({ ...tForm, unitId: e.target.value, unit: u?.unitNumber || u?.houseNumber || '' });
+                  }}>
+                    <option value="">{tForm.landlordId ? 'Select unit...' : 'Select landlord first'}</option>
+                    {apiLandlords?.data?.find((l: any) => l.id === tForm.landlordId)?.properties?.map((p: any) => (
+                      <option key={p.unit?.id} value={p.unit?.id}>
+                        {p.unit?.unitNumber || p.unit?.houseNumber} — {p.unit?.building?.estate?.name || p.unit?.building?.name || ''}
+                      </option>
                     ))}
                   </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Unit / House Number</Label>
-                  <Input placeholder="e.g. A-101 or House 5" value={tForm.unit} onChange={(e) => setTForm({ ...tForm, unit: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Emergency Contact</Label>
@@ -404,7 +428,7 @@ export default function PersonsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddTenant(false)}>Cancel</Button>
-            <Button onClick={handleAddTenant} disabled={!tForm.name || !tForm.landlordId || !tForm.unit || !tForm.leaseEnd}>Register Tenant</Button>
+            <Button onClick={handleAddTenant} disabled={!tForm.name || !tForm.email || !tForm.landlordId || !tForm.unitId || !tForm.leaseStart || !tForm.leaseEnd || createTenantMut.isPending}>Register Tenant</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -417,6 +441,15 @@ export default function PersonsPage() {
             <DialogDescription>Register a new property owner on the platform.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {!user?.estateId && (
+              <div className="space-y-2">
+                <Label>Estate *</Label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={pickedEstateId} onChange={(e) => setPickedEstateId(e.target.value)}>
+                  <option value="">Select estate...</option>
+                  {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Full Name</Label><Input placeholder="e.g. Nana Akufo-Mensah" value={lForm.name} onChange={(e) => setLForm({ ...lForm, name: e.target.value })} /></div>
               <div className="space-y-2"><Label>Email</Label><Input type="email" placeholder="nana@email.com" value={lForm.email} onChange={(e) => setLForm({ ...lForm, email: e.target.value })} /></div>

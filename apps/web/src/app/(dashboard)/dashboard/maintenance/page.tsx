@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useMaintenanceRequests, useCreateMaintenanceRequest, useDeleteMaintenanceRequest } from '@/lib/hooks';
+import { useMaintenanceRequests, useCreateMaintenanceRequest, useDeleteMaintenanceRequest, useEstates, useMyTenantProfile } from '@/lib/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
@@ -52,7 +52,13 @@ export default function MaintenancePage() {
 
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const estateId = user?.estateId || '';
+  const isTenant = user?.role === 'tenant';
+  const [pickedEstateId, setPickedEstateId] = useState('');
+  const { data: estatesData } = useEstates();
+  const { data: myTenant } = useMyTenantProfile();
+  const estates: any[] = estatesData?.data || [];
+  const estateId = user?.estateId || pickedEstateId || estates[0]?.id || '';
+  const tenantProfile = isTenant ? myTenant?.data : null;
 
   const { data: staffData } = useQuery({
     queryKey: ['staff', estateId],
@@ -85,25 +91,25 @@ export default function MaintenancePage() {
   );
 
   const handleAdd = () => {
-    const newReq: ServiceRequest = {
-      id: `SR-${String(requests.length + 1).padStart(3, '0')}`,
-      title: form.title,
-      unit: form.unit,
-      category: form.category,
-      priority: form.priority,
-      status: 'submitted',
-      assignee: '—',
-      date: new Date().toISOString().split('T')[0],
-      tenant: form.tenant,
-      description: form.description,
-    };
-    // Try API first
     createRequest.mutate(
-      { title: form.title, category: form.category.toLowerCase(), priority: form.priority, description: form.description, estateId: '' },
-      { onError: () => setLocalRequests([newReq, ...localRequests]) },
+      {
+        title: form.title,
+        category: form.category.toLowerCase(),
+        priority: form.priority,
+        description: form.description,
+        estateId,
+        tenantId: tenantProfile?.id || undefined,
+        unitId: tenantProfile?.leases?.[0]?.unit?.id || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Request submitted');
+          setForm({ title: '', unit: '', category: 'Plumbing', priority: 'normal', tenant: '', description: '' });
+          setShowAdd(false);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to submit request'),
+      },
     );
-    setForm({ title: '', unit: '', category: 'Plumbing', priority: 'normal', tenant: '', description: '' });
-    setShowAdd(false);
   };
 
   const handleDelete = (id: string) => {
@@ -201,6 +207,15 @@ export default function MaintenancePage() {
             <DialogDescription>Submit a new maintenance request.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {!user?.estateId && (
+              <div className="space-y-2">
+                <Label>Estate</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={pickedEstateId} onChange={(e) => setPickedEstateId(e.target.value)}>
+                  <option value="">Select estate...</option>
+                  {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="space-y-2"><Label>Title</Label><Input placeholder="e.g. Kitchen sink leaking" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Unit</Label><Input placeholder="e.g. A-101" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
@@ -224,7 +239,7 @@ export default function MaintenancePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={!form.title || !form.unit}>Submit Request</Button>
+            <Button onClick={handleAdd} disabled={!form.title || !form.unit || !estateId || createRequest.isPending}>Submit Request</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

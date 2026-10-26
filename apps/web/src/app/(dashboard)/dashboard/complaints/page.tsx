@@ -10,10 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useComplaints, useCreateComplaint } from '@/lib/hooks';
+import { useComplaints, useCreateComplaint, useEstates, useMyTenantProfile } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuthStore } from '@/store/auth-store';
 
 interface Complaint {
   id: string;
@@ -47,6 +48,15 @@ export default function ComplaintsPage() {
   const [responseText, setResponseText] = useState('');
   const qc = useQueryClient();
 
+  const user = useAuthStore((s) => s.user);
+  const isTenant = user?.role === 'tenant';
+  const [pickedEstateId, setPickedEstateId] = useState('');
+  const { data: estatesData } = useEstates();
+  const { data: myTenant } = useMyTenantProfile();
+  const estates: any[] = estatesData?.data || [];
+  const estateId = user?.estateId || pickedEstateId || estates[0]?.id || '';
+  const tenantProfile = isTenant ? myTenant?.data : null;
+
   const { data: apiData } = useComplaints();
   const createComplaint = useCreateComplaint();
 
@@ -68,22 +78,25 @@ export default function ComplaintsPage() {
   );
 
   const handleAdd = () => {
-    const newComplaint: Complaint = {
-      id: `CMP-${String(complaints.length + 1).padStart(3, '0')}`,
-      title: form.title,
-      category: form.category,
-      urgency: form.urgency,
-      status: 'open',
-      reporter: form.reporter,
-      date: new Date().toISOString().split('T')[0],
-      description: form.description,
-    };
     createComplaint.mutate(
-      { title: form.title, category: form.category.toLowerCase(), urgency: form.urgency as any, description: form.description, estateId: '' },
-      { onError: () => setLocalComplaints([newComplaint, ...localComplaints]) },
+      {
+        title: form.title,
+        category: form.category.toLowerCase(),
+        urgency: form.urgency as any,
+        description: form.description,
+        estateId,
+        tenantId: tenantProfile?.id || undefined,
+        unitId: tenantProfile?.leases?.[0]?.unit?.id || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Complaint filed');
+          setForm({ title: '', category: 'Noise', urgency: 'medium', reporter: '', description: '' });
+          setShowAdd(false);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to file complaint'),
+      },
     );
-    setForm({ title: '', category: 'Noise', urgency: 'medium', reporter: '', description: '' });
-    setShowAdd(false);
   };
 
   const handleDelete = (id: string) => {
@@ -180,6 +193,15 @@ export default function ComplaintsPage() {
             <DialogDescription>Report a new issue or concern.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {!user?.estateId && (
+              <div className="space-y-2">
+                <Label>Estate</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={pickedEstateId} onChange={(e) => setPickedEstateId(e.target.value)}>
+                  <option value="">Select estate...</option>
+                  {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="space-y-2"><Label>Title</Label><Input placeholder="Brief description of complaint" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Reporter</Label><Input placeholder="Your name" value={form.reporter} onChange={(e) => setForm({ ...form, reporter: e.target.value })} /></div>
@@ -200,7 +222,7 @@ export default function ComplaintsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={!form.title || !form.reporter}>Submit</Button>
+            <Button onClick={handleAdd} disabled={!form.title || !form.reporter || !estateId || createComplaint.isPending}>Submit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
