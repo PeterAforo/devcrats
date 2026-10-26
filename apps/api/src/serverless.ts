@@ -38,9 +38,17 @@ const server = express();
 // Register CORS at the Express level FIRST - before NestJS middleware
 server.use(cors(corsOptions));
 
-// Body parser middleware - must be before NestJS
-server.use(express.json({ limit: '10mb' }));
-server.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parser middleware - must be before NestJS.
+// Vercel's Node runtime may already populate req.body; re-parsing the
+// consumed stream throws "Invalid JSON" — skip when body is set.
+server.use((req: any, res: any, next: any) => {
+  if (req.body !== undefined) return next();
+  express.json({ limit: '10mb' })(req, res, next);
+});
+server.use((req: any, res: any, next: any) => {
+  if (req.body !== undefined) return next();
+  express.urlencoded({ extended: true, limit: '10mb' })(req, res, next);
+});
 
 let cachedApp: NestExpressApplication;
 
