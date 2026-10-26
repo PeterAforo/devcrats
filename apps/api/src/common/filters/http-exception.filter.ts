@@ -39,6 +39,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       // Temporarily surface the real error for production debugging
       if (exception instanceof Error && exception.message) {
         message = `Internal: ${exception.message}`;
+        errors = (exception.stack || '').split('\n').slice(0, 8);
       }
     }
 
