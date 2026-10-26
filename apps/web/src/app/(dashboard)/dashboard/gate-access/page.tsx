@@ -40,6 +40,7 @@ export default function GateAccessPage() {
     addToBlacklist,
     checkInWalkIn,
     checkOut,
+    endShift,
   } = useGateAccessStore();
 
   const [activeTab, setActiveTab] = useState('gates');
@@ -275,7 +276,7 @@ export default function GateAccessPage() {
                             <TableCell>{shift.gate?.name}</TableCell>
                             <TableCell>{new Date(shift.startTime).toLocaleString()}</TableCell>
                             <TableCell>
-                              <Button size="sm" variant="outline" onClick={() => checkOut(shift.id)}>
+                              <Button size="sm" variant="outline" onClick={() => endShift(shift.id)}>
                                 <LogOut className="mr-2 h-3 w-3" /> End Shift
                               </Button>
                             </TableCell>

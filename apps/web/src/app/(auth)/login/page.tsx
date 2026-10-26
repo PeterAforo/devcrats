@@ -23,6 +23,8 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const [isLoading, setIsLoading] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -31,7 +33,12 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password);
+      const res = await login(data.email, data.password, mfaCode || undefined);
+      if (res?.mfaRequired) {
+        setMfaRequired(true);
+        toast.info('Enter your authentication code');
+        return;
+      }
       toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (error: any) {
@@ -80,6 +87,20 @@ export default function LoginPage() {
             />
             {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
           </div>
+          {mfaRequired && (
+            <div className="space-y-2">
+              <label htmlFor="mfaCode" className="text-sm font-medium">Authentication Code</label>
+              <Input
+                id="mfaCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code from your authenticator app"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.trim())}
+                autoFocus
+              />
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" size="lg" disabled={isLoading}>

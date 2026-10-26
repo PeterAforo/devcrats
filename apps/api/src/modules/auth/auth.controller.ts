@@ -48,12 +48,17 @@ export class AuthController {
       console.log('Login attempt:', { email: dto.email, hasPassword: !!dto.password });
       const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
       console.log('IP Address:', ipAddress);
-      const result = await this.authService.login(
+      const result: any = await this.authService.login(
         dto,
         ipAddress,
         req.headers['user-agent'],
       );
       console.log('Login successful for:', dto.email);
+
+      // MFA challenge: password valid but TOTP code required
+      if ((result as any)?.mfaRequired) {
+        return { mfaRequired: true };
+      }
 
       // Set cookie as fallback for same-origin setups
       res.cookie('refresh_token', result.refreshToken, {
@@ -133,6 +138,27 @@ export class AuthController {
 
     res.clearCookie('refresh_token', { path: '/api/v1/auth' });
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('mfa/setup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate TOTP secret for MFA enrollment' })
+  mfaSetup(@CurrentUser('id') userId: string) {
+    return this.authService.mfaSetup(userId);
+  }
+
+  @Post('mfa/enable')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Enable MFA with a valid TOTP code' })
+  mfaEnable(@CurrentUser('id') userId: string, @Body('code') code: string) {
+    return this.authService.mfaEnable(userId, code);
+  }
+
+  @Post('mfa/disable')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable MFA with a valid TOTP code' })
+  mfaDisable(@CurrentUser('id') userId: string, @Body('code') code: string) {
+    return this.authService.mfaDisable(userId, code);
   }
 
   @Get('me')

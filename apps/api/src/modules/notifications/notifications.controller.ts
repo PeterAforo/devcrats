@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -20,6 +20,18 @@ export class NotificationsController {
     @Query('unreadOnly') unreadOnly?: string,
   ) {
     return this.notificationsService.findAllForUser(userId, page || 1, limit || 20, unreadOnly === 'true');
+  }
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Get my notification preferences' })
+  getPreferences(@CurrentUser('id') userId: string) {
+    return this.notificationsService.getPreferences(userId);
+  }
+
+  @Put('preferences')
+  @ApiOperation({ summary: 'Update notification preferences' })
+  setPreferences(@CurrentUser('id') userId: string, @Body() prefs: { type: string; channel: string; enabled: boolean }[]) {
+    return this.notificationsService.setPreferences(userId, prefs);
   }
 
   @Get('unread-count')

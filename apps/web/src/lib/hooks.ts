@@ -9,6 +9,83 @@ export function useDashboardStats(estateId?: string) {
   });
 }
 
+export function useDashboardAnalytics(estateId?: string) {
+  return useQuery({
+    queryKey: ['dashboard-analytics', estateId],
+    queryFn: () => api.get(`/dashboard/analytics${estateId ? `?estateId=${estateId}` : ''}`),
+  });
+}
+
+// ─── UTILITIES ───────────────────────────────────────────────────
+
+export function useUtilitySummary(estateId?: string) {
+  return useQuery({
+    queryKey: ['utility-summary', estateId],
+    queryFn: () => api.get(`/utilities/summary?estateId=${estateId}`),
+    enabled: !!estateId,
+  });
+}
+
+export function useMeters(estateId?: string, type?: string) {
+  return useQuery({
+    queryKey: ['meters', estateId, type],
+    queryFn: () => api.get(`/utilities/meters?estateId=${estateId}${type ? `&type=${type}` : ''}`),
+    enabled: !!estateId,
+  });
+}
+
+export function useCreateMeter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.post('/utilities/meters', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meters'] }),
+  });
+}
+
+export function useCreateReading() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.post('/utilities/readings', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meters'] });
+      qc.invalidateQueries({ queryKey: ['utility-summary'] });
+    },
+  });
+}
+
+export function useUtilityRates(estateId?: string) {
+  return useQuery({
+    queryKey: ['utility-rates', estateId],
+    queryFn: () => api.get(`/utilities/rates?estateId=${estateId}`),
+    enabled: !!estateId,
+  });
+}
+
+export function useCreateUtilityRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.post('/utilities/rates', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['utility-rates'] }),
+  });
+}
+
+// ─── NOTIFICATION PREFERENCES ────────────────────────────────────
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => api.get('/notifications/preferences'),
+  });
+}
+
+export function useUpdateNotificationPreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (prefs: { type: string; channel: string; enabled: boolean }[]) => api.put('/notifications/preferences', prefs),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-preferences'] }),
+  });
+}
+
 // ─── ESTATES ──────────────────────────────────────────────
 export function useEstates(page = 1, search?: string) {
   return useQuery({
@@ -55,9 +132,7 @@ export function useUploadEstateLogo() {
     mutationFn: ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData();
       formData.append('file', file);
-      return api.post(`/estates/${id}/logo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      return api.post(`/estates/${id}/logo`, formData);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['estates'] });
@@ -111,6 +186,17 @@ export function useCreateTenant() {
   return useMutation({
     mutationFn: (data: any) => api.post('/tenants', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tenants'] }),
+  });
+}
+
+export function useUpdateTenant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/tenants/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tenants'] });
+      qc.invalidateQueries({ queryKey: ['my-tenant-profile'] });
+    },
   });
 }
 

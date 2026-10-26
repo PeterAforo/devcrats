@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { useTenants, useLandlords, useCreateTenant, useCreateLandlord, useEstates } from '@/lib/hooks';
+import { useTenants, useLandlords, useCreateTenant, useCreateLandlord, useUpdateTenant, useEstates } from '@/lib/hooks';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 
@@ -80,6 +80,7 @@ export default function PersonsPage() {
   const { data: apiLandlords } = useLandlords();
   const createTenantMut = useCreateTenant();
   const createLandlordMut = useCreateLandlord();
+  const updateTenantMut = useUpdateTenant();
 
   // Use API data if available
   const tenants: Tenant[] = apiTenants?.data
@@ -189,10 +190,27 @@ export default function PersonsPage() {
 
   const handleSaveEdit = () => {
     if (!editingTenant) return;
-    const updated = tenants.map((t) => t.id === editingTenant.id ? { ...t, ...editForm } : t);
-    setLocalTenants(updated as Tenant[]);
-    setEditingTenant(null);
-    setShowTenantDetail(null);
+    updateTenantMut.mutate(
+      {
+        id: editingTenant.id,
+        data: {
+          firstName: editForm.name.split(' ')[0],
+          lastName: editForm.name.split(' ').slice(1).join(' ') || undefined,
+          email: editForm.email || undefined,
+          phone: editForm.phone || undefined,
+          nationality: editForm.nationality || undefined,
+          leaseEndDate: editForm.leaseEnd || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Tenant updated');
+          setEditingTenant(null);
+          setShowTenantDetail(null);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to update tenant'),
+      },
+    );
   };
   const handleDeleteLandlord = (id: string) => { setLocalLandlords(localLandlords.filter((l) => l.id !== id)); setShowLandlordDetail(null); };
 

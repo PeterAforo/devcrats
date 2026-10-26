@@ -22,7 +22,7 @@ interface AuthState {
   isLoading: boolean;
   isDemoMode: boolean;
   setUser: (user: AuthUser | null) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, mfaCode?: string) => Promise<{ mfaRequired: boolean }>;
   register: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string; estateId?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
@@ -47,16 +47,21 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isAuthenticated: !!user, isLoading: false }),
 
-      login: async (email, password) => {
+      login: async (email, password, mfaCode) => {
         set({ isLoading: true });
 
         try {
-          const res = await api.post<{ data: { user: AuthUser; accessToken: string; refreshToken: string } }>('/auth/login', { email, password });
+          const res = await api.post<{ data: { mfaRequired?: boolean; user: AuthUser; accessToken: string; refreshToken: string } }>('/auth/login', { email, password, mfaCode });
+          if (res.data?.mfaRequired) {
+            set({ isLoading: false });
+            return { mfaRequired: true };
+          }
           const { user, accessToken, refreshToken } = res.data;
           api.setToken(accessToken);
           api.setRefreshToken(refreshToken);
           api.setDemoMode(false);
           set({ user, refreshToken, isAuthenticated: true, isLoading: false, isDemoMode: false });
+          return { mfaRequired: false };
         } catch (err) {
           set({ isLoading: false });
           throw err;

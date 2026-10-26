@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateLandlordDto } from './dto';
+import { CreateTenantDto, CreateLandlordDto, UpdateTenantDto } from './dto';
 
 @Injectable()
 export class PersonsService {
@@ -184,6 +184,53 @@ export class PersonsService {
     });
     if (!tenant) throw new NotFoundException('Tenant profile not found');
     return tenant;
+  }
+
+  async updateTenant(id: string, dto: UpdateTenantDto) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    if (dto.email) {
+      const conflict = await this.prisma.user.findFirst({
+        where: { email: dto.email.toLowerCase(), id: { not: tenant.userId } },
+      });
+      if (conflict) throw new ConflictException('Email already registered');
+    }
+
+    await this.prisma.user.update({
+      where: { id: tenant.userId },
+      data: {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email?.toLowerCase(),
+        phone: dto.phone,
+        avatarUrl: dto.avatarUrl,
+        idType: dto.idType as any,
+        idNumber: dto.idNumber,
+      },
+    });
+
+    await this.prisma.tenant.update({
+      where: { id },
+      data: {
+        nationality: dto.nationality,
+        occupation: dto.occupation,
+        emergencyContact: dto.emergencyContact,
+        emergencyPhone: dto.emergencyPhone,
+        employerName: dto.employerName || dto.companyName,
+        employerPhone: dto.employerPhone,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+      },
+    });
+
+    if (dto.leaseEndDate) {
+      await this.prisma.lease.updateMany({
+        where: { tenantId: id, status: 'active' },
+        data: { endDate: new Date(dto.leaseEndDate) },
+      });
+    }
+
+    return this.findTenantById(id);
   }
 
   async deleteTenant(id: string) {

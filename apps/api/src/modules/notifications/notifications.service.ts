@@ -50,6 +50,23 @@ export class NotificationsService {
     });
   }
 
+  async getPreferences(userId: string) {
+    return this.prisma.notificationPreference.findMany({ where: { userId } });
+  }
+
+  async setPreferences(userId: string, prefs: { type: string; channel: string; enabled: boolean }[]) {
+    await this.prisma.$transaction(
+      prefs.map((p) =>
+        this.prisma.notificationPreference.upsert({
+          where: { userId_type_channel: { userId, type: p.type, channel: p.channel } },
+          update: { enabled: p.enabled },
+          create: { userId, type: p.type, channel: p.channel, enabled: p.enabled },
+        }),
+      ),
+    );
+    return this.getPreferences(userId);
+  }
+
   async getUnreadCount(userId: string) {
     const count = await this.prisma.notification.count({ where: { userId, isRead: false } });
     return { count };

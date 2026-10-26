@@ -188,7 +188,15 @@ export default function ReceiptsPage() {
           <p className="text-muted-foreground mt-1">{pageDesc}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" size="sm"><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
+          <Button variant="outline" className="gap-2" size="sm" onClick={() => {
+              const rows = [['Number', 'Received From', 'House', 'Cluster', 'Period', 'Description', 'Amount', 'Method', 'Date'],
+                ...filtered.map((r) => [r.number, r.receivedFrom, r.houseNumber, r.cluster, r.period, r.description, String(r.amount), r.method, r.date])];
+              const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+              const a = document.createElement('a');
+              a.href = url; a.download = `receipts-${new Date().toISOString().split('T')[0]}.csv`; a.click();
+              URL.revokeObjectURL(url);
+            }}><Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span></Button>
           {canGenerate && (
             <Button className="gap-2" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Generate</span> Receipt</Button>
           )}

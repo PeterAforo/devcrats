@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { User, Bell, Shield, Palette, Globe, Camera, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,15 @@ import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useNotificationPreferences, useUpdateNotificationPreferences } from '@/lib/hooks';
+
+const NOTIF_TYPES = [
+  { type: 'payment', label: 'Payment Received', desc: 'Get notified when a payment is made' },
+  { type: 'maintenance', label: 'New Maintenance Request', desc: 'When a resident submits a request' },
+  { type: 'complaint', label: 'Complaint Filed', desc: 'When a new complaint is logged' },
+  { type: 'lease', label: 'Lease Expiring', desc: '30 days before lease expiration' },
+  { type: 'visitor', label: 'Visitor Arrival', desc: 'When a visitor checks in' },
+];
 
 const roleLabels: Record<string, string> = {
   tenant: 'Tenant',
@@ -36,6 +45,61 @@ export default function SettingsPage() {
     phone,
   });
   const [profileSaving, setProfileSaving] = useState(false);
+
+  const { data: prefsData } = useNotificationPreferences();
+  const updatePrefs = useUpdateNotificationPreferences();
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const map: Record<string, boolean> = {};
+    for (const p of (prefsData?.data || []) as any[]) map[`${p.type}:${p.channel}`] = p.enabled;
+    setNotifPrefs(map);
+  }, [prefsData]);
+
+  const [mfaSetup, setMfaSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaBusy, setMfaBusy] = useState(false);
+
+  const handleMfaSetup = async () => {
+    setMfaBusy(true);
+    try {
+      const res: any = await api.post('/auth/mfa/setup');
+      setMfaSetup(res.data);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to start MFA setup');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaEnable = async () => {
+    setMfaBusy(true);
+    try {
+      await api.post('/auth/mfa/enable', { code: mfaCode });
+      if (user) setUser({ ...user, mfaEnabled: true });
+      setMfaSetup(null);
+      setMfaCode('');
+      toast.success('Two-factor authentication enabled');
+    } catch (e: any) {
+      toast.error(e.message || 'Invalid code');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaDisable = async () => {
+    const code = window.prompt('Enter your authentication code to disable 2FA');
+    if (!code) return;
+    setMfaBusy(true);
+    try {
+      await api.post('/auth/mfa/disable', { code });
+      if (user) setUser({ ...user, mfaEnabled: false });
+      toast.success('Two-factor authentication disabled');
+    } catch (e: any) {
+      toast.error(e.message || 'Invalid code');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -250,29 +314,43 @@ export default function SettingsPage() {
               <CardDescription>Choose how you receive notifications</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { label: 'Payment Received', desc: 'Get notified when a payment is made', email: true, push: true },
-                { label: 'New Maintenance Request', desc: 'When a resident submits a request', email: true, push: true },
-                { label: 'Complaint Filed', desc: 'When a new complaint is logged', email: true, push: false },
-                { label: 'Lease Expiring', desc: '30 days before lease expiration', email: true, push: true },
-                { label: 'Visitor Arrival', desc: 'When a visitor checks in', email: false, push: true },
-              ].map((pref, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
+              {NOTIF_TYPES.map((pref) => (
+                <div key={pref.type} className="flex items-center justify-between py-3 border-b last:border-0">
                   <div>
                     <p className="font-medium text-sm">{pref.label}</p>
                     <p className="text-xs text-muted-foreground">{pref.desc}</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-xs">
-                      <input type="checkbox" defaultChecked={pref.email} className="rounded" /> Email
-                    </label>
-                    <label className="flex items-center gap-2 text-xs">
-                      <input type="checkbox" defaultChecked={pref.push} className="rounded" /> Push
-                    </label>
+                    {(['email', 'push'] as const).map((channel) => (
+                      <label key={channel} className="flex items-center gap-2 text-xs capitalize">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={notifPrefs[`${pref.type}:${channel}`] ?? true}
+                          onChange={(e) => setNotifPrefs({ ...notifPrefs, [`${pref.type}:${channel}`]: e.target.checked })}
+                        />
+                        {channel}
+                      </label>
+                    ))}
                   </div>
                 </div>
               ))}
-              <Button onClick={() => toast.success('Notification preferences saved')}>Save Preferences</Button>
+              <Button
+                disabled={updatePrefs.isPending}
+                onClick={() => {
+                  const prefs = NOTIF_TYPES.flatMap((t) =>
+                    (['email', 'push'] as const).map((channel) => ({
+                      type: t.type,
+                      channel,
+                      enabled: notifPrefs[`${t.type}:${channel}`] ?? true,
+                    })),
+                  );
+                  updatePrefs.mutate(prefs, {
+                    onSuccess: () => toast.success('Notification preferences saved'),
+                    onError: (e: any) => toast.error(e.message || 'Failed to save preferences'),
+                  });
+                }}
+              >Save Preferences</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -297,12 +375,32 @@ export default function SettingsPage() {
                 <Input id="confirmPassword" type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))} />
               </div>
               <Separator />
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium text-sm">Two-Factor Authentication</p>
-                  <p className="text-xs text-muted-foreground">Add an extra layer of security</p>
+              <div className="space-y-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Two-Factor Authentication</p>
+                    <p className="text-xs text-muted-foreground">Add an extra layer of security</p>
+                  </div>
+                  {user?.mfaEnabled ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="success" className="text-xs">Enabled</Badge>
+                      <Button variant="outline" size="sm" onClick={handleMfaDisable} disabled={mfaBusy}>Disable</Button>
+                    </div>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={handleMfaSetup} disabled={mfaBusy}>Enable 2FA</Button>
+                  )}
                 </div>
-                <Button variant="outline">Enable 2FA</Button>
+                {mfaSetup && !user?.mfaEnabled && (
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                    <p className="text-xs text-muted-foreground">Add this key to your authenticator app (Google Authenticator, Authy, etc.):</p>
+                    <code className="block text-xs font-mono bg-background border rounded p-2 break-all select-all">{mfaSetup.secret}</code>
+                    <p className="text-xs text-muted-foreground break-all">{mfaSetup.otpauthUrl}</p>
+                    <div className="flex items-center gap-2">
+                      <Input placeholder="6-digit code" inputMode="numeric" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.trim())} className="w-40" />
+                      <Button size="sm" onClick={handleMfaEnable} disabled={mfaCode.length < 6 || mfaBusy}>Confirm & Enable</Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <Separator />
               <Button onClick={handleChangePassword} disabled={passwordSaving || !passwordForm.currentPassword || !passwordForm.newPassword}>

@@ -25,4 +25,11 @@ export class DashboardController {
         return this.dashboardService.getAdminStats(user.estateId);
     }
   }
+
+  @Get('analytics')
+  @ApiOperation({ summary: 'Portfolio analytics (admin/manager)' })
+  @ApiQuery({ name: 'estateId', required: false })
+  getAnalytics(@CurrentUser() user: any, @Query('estateId') estateId?: string) {
+    return this.dashboardService.getAnalytics(estateId || (user.role === 'super_admin' ? undefined : user.estateId));
+  }
 }

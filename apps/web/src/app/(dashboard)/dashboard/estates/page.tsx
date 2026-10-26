@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useEstates, useCreateEstate, useUploadEstateLogo } from '@/lib/hooks';
+import { useEstates, useCreateEstate, useUpdateEstate, useDeleteEstate, useUploadEstateLogo } from '@/lib/hooks';
+import { toast } from 'sonner';
 
 interface Estate {
   id: string;
@@ -35,6 +36,8 @@ export default function EstatesPage() {
 
   const { data: apiData, isLoading } = useEstates();
   const createEstate = useCreateEstate();
+  const updateEstate = useUpdateEstate();
+  const deleteEstate = useDeleteEstate();
   const uploadLogo = useUploadEstateLogo();
 
   const estates: Estate[] = apiData?.data?.map((e: any) => ({
@@ -86,12 +89,25 @@ export default function EstatesPage() {
 
   const handleEdit = () => {
     if (!editEstate) return;
-    setEditEstate(null);
-    setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
+    updateEstate.mutate(
+      { id: editEstate.id, data: { name: form.name, address: form.address, latitude: form.lat || undefined, longitude: form.lng || undefined } },
+      {
+        onSuccess: () => {
+          toast.success('Estate updated');
+          setEditEstate(null);
+          setForm({ name: '', address: '', buildings: 1, units: 0, lat: 0, lng: 0, owner: '' });
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to update estate'),
+      },
+    );
   };
 
   const handleDelete = (id: string) => {
-    setShowDetail(null);
+    if (!confirm('Delete this estate? This cannot be undone.')) return;
+    deleteEstate.mutate(id, {
+      onSuccess: () => { toast.success('Estate deleted'); setShowDetail(null); },
+      onError: (e: any) => toast.error(e.message || 'Failed to delete estate'),
+    });
   };
 
   const openEdit = (estate: Estate) => {

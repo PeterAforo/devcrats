@@ -11,6 +11,7 @@ import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin, generateSecret, generateURI } from 'otplib';
 
 @Injectable()
 export class AuthService {
@@ -91,6 +92,18 @@ export class AuthService {
     if (!isPasswordValid) {
       await this.recordLoginAttempt(user.id, dto.email, false, 'Invalid password', ipAddress, userAgent);
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // MFA gate: valid password, but TOTP required when enabled
+    if (user.mfaEnabled && user.mfaSecret) {
+      if (!dto.mfaCode) {
+        return { mfaRequired: true };
+      }
+      const { valid } = await this.totp(user.mfaSecret).verify(dto.mfaCode);
+      if (!valid) {
+        await this.recordLoginAttempt(user.id, dto.email, false, 'Invalid MFA code', ipAddress, userAgent);
+        throw new UnauthorizedException('Invalid authentication code');
+      }
     }
 
     await this.recordLoginAttempt(user.id, dto.email, true, null, ipAddress, userAgent);
@@ -351,5 +364,45 @@ export class AuthService {
     });
 
     return { message: 'Password updated successfully' };
+  }
+
+  private totp(secret: string) {
+    return new TOTP({ secret, crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() });
+  }
+
+  async mfaSetup(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.mfaEnabled) throw new BadRequestException('MFA is already enabled');
+
+    const secret = generateSecret();
+    await this.prisma.user.update({ where: { id: userId }, data: { mfaSecret: secret } });
+
+    return {
+      secret,
+      otpauthUrl: generateURI({ issuer: 'EstateIQ', label: user.email, secret }),
+    };
+  }
+
+  async mfaEnable(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.mfaSecret) throw new BadRequestException('Run MFA setup first');
+    const { valid } = await this.totp(user.mfaSecret).verify(code);
+    if (!valid) {
+      throw new BadRequestException('Invalid authentication code');
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } });
+    return { mfaEnabled: true };
+  }
+
+  async mfaDisable(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.mfaEnabled || !user.mfaSecret) throw new BadRequestException('MFA is not enabled');
+    const { valid } = await this.totp(user.mfaSecret).verify(code);
+    if (!valid) {
+      throw new BadRequestException('Invalid authentication code');
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: false, mfaSecret: null } });
+    return { mfaEnabled: false };
   }
 }
