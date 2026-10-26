@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 const BUILT_IN_INTEGRATIONS = [
   { provider: 'paystack', category: 'payment', displayName: 'Paystack', description: 'Accept card, mobile money, and bank payments via Paystack', credentialKeys: ['publicKey', 'secretKey'], configKeys: ['callbackUrl'] },
   { provider: 'hubtel', category: 'payment', displayName: 'Hubtel Payment Gateway', description: 'Accept MTN, Vodafone, AirtelTigo mobile money and card payments', credentialKeys: ['clientId', 'clientSecret'], configKeys: ['merchantAccount', 'callbackUrl'] },
+  { provider: 'theteller', category: 'payment', displayName: 'TheTeller (PaySwitch)', description: 'Accept card and mobile money payments via PaySwitch theTeller hosted checkout', credentialKeys: ['clientId', 'clientSecret'], configKeys: ['merchantId', 'env'] },
   { provider: 'resend', category: 'email', displayName: 'Resend (Email)', description: 'Transactional emails — receipts, password resets, notifications', credentialKeys: ['apiKey'], configKeys: ['fromEmail', 'fromName'] },
   { provider: 'mnotify', category: 'sms', displayName: 'mNotify SMS', description: 'Send SMS notifications to tenants and staff (Ghana)', credentialKeys: ['apiKey'], configKeys: ['senderId'] },
   { provider: 'google_maps', category: 'maps', displayName: 'Google Maps', description: 'Estate location mapping and address autocomplete', credentialKeys: ['apiKey'], configKeys: [] },
@@ -42,6 +43,11 @@ export class IntegrationsService implements OnModuleInit {
         creds.clientId = this.configService.get('HUBTEL_CLIENT_ID', '');
         creds.clientSecret = this.configService.get('HUBTEL_CLIENT_SECRET', '');
         conf.merchantAccount = this.configService.get('HUBTEL_MERCHANT_ACCOUNT', '');
+      } else if (bi.provider === 'theteller') {
+        creds.clientId = this.configService.get('THETELLER_API_USER', '');
+        creds.clientSecret = this.configService.get('THETELLER_API_KEY', '');
+        conf.merchantId = this.configService.get('THETELLER_MERCHANT_ID', '');
+        conf.env = this.configService.get('THETELLER_ENV', 'test');
       } else if (bi.provider === 'resend') {
         creds.apiKey = this.configService.get('RESEND_API_KEY', '');
         conf.fromEmail = this.configService.get('EMAIL_FROM', 'noreply@estateiq.app');
@@ -159,6 +165,81 @@ export class IntegrationsService implements OnModuleInit {
     const integration = await this.prisma.integration.findUnique({ where: { provider } });
     if (!integration || !integration.isActive) return {};
     return (integration.credentials as Record<string, string>) || {};
+  }
+
+  /** Raw stored credentials regardless of isActive — for the admin "test connection" flow */
+  async getRawCredentials(provider: string): Promise<Record<string, string>> {
+    const integration = await this.prisma.integration.findUnique({ where: { provider } });
+    if (!integration) throw new NotFoundException(`Integration '${provider}' not found`);
+    return (integration.credentials as Record<string, string>) || {};
+  }
+
+  /**
+   * Verify stored (or env-fallback) credentials against the provider's live API.
+   * Returns { ok, message } — a reachable non-auth-error response counts as accepted.
+   */
+  async testConnection(provider: string): Promise<{ ok: boolean; message: string }> {
+    const creds = await this.getRawCredentials(provider);
+    const config = await this.getConfig(provider);
+
+    try {
+      switch (provider) {
+        case 'paystack': {
+          const key = creds.secretKey || this.configService.get('PAYSTACK_SECRET_KEY', '');
+          if (!key) return { ok: false, message: 'No secret key configured' };
+          const res = await fetch('https://api.paystack.co/bank?perPage=1', {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+          if (res.status === 401) return { ok: false, message: 'Invalid secret key — check PAYSTACK_SECRET_KEY' };
+          if (!res.ok) return { ok: false, message: `Paystack returned HTTP ${res.status}` };
+          return { ok: true, message: 'Paystack credentials verified — API reachable and key accepted' };
+        }
+        case 'hubtel': {
+          const id = creds.clientId || this.configService.get('HUBTEL_CLIENT_ID', '');
+          const secret = creds.clientSecret || this.configService.get('HUBTEL_CLIENT_SECRET', '');
+          if (!id || !secret) return { ok: false, message: 'Client ID / secret not configured' };
+          const res = await fetch('https://payproxyapi.hubtel.com/items/test-connection/status', {
+            headers: { Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}` },
+          });
+          if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid Hubtel credentials (HTTP 401/403)' };
+          return { ok: true, message: 'Hubtel credentials accepted — API reachable' };
+        }
+        case 'theteller': {
+          const apiUser = creds.clientId || this.configService.get('THETELLER_API_USER', '');
+          const apiKey = creds.clientSecret || this.configService.get('THETELLER_API_KEY', '');
+          const merchantId = config.merchantId || this.configService.get('THETELLER_MERCHANT_ID', '');
+          if (!apiUser || !apiKey || !merchantId) return { ok: false, message: 'API username, API key and Merchant ID are all required' };
+          const env = (config.env || this.configService.get('THETELLER_ENV', 'test')).toLowerCase();
+          const base = this.configService.get('THETELLER_BASE_URL') || (env === 'live' ? 'https://prod.theteller.net' : 'https://test.theteller.net');
+          const res = await fetch(`${base}/v1.1/users/transactions/000000000000/status`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Merchant-Id': merchantId,
+              'Cache-Control': 'no-cache',
+            },
+          });
+          if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid theTeller credentials (HTTP 401/403)' };
+          const data: any = await res.json().catch(() => ({}));
+          if (data?.code === '999' || data?.code === '998' || /invalid|unauthori/i.test(data?.message || '')) {
+            return { ok: false, message: data.message || 'theTeller rejected the credentials' };
+          }
+          return { ok: true, message: `theTeller ${env} endpoint reached — Merchant ID accepted (transaction not found, as expected)` };
+        }
+        case 'resend': {
+          const key = creds.apiKey || this.configService.get('RESEND_API_KEY', '');
+          if (!key) return { ok: false, message: 'No API key configured' };
+          const res = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${key}` } });
+          if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid Resend API key' };
+          if (!res.ok) return { ok: false, message: `Resend returned HTTP ${res.status}` };
+          return { ok: true, message: 'Resend API key verified' };
+        }
+        default:
+          return { ok: false, message: `Connection test is not supported for '${provider}'` };
+      }
+    } catch (e: any) {
+      this.logger.error(`Connection test failed for ${provider}`, e?.message);
+      return { ok: false, message: `Could not reach ${provider}: ${e?.message || 'network error'}` };
+    }
   }
 
   async getConfig(provider: string): Promise<Record<string, string>> {

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { useIntegrations, useUpdateIntegration, useToggleIntegration, useCreateIntegration, useDeleteIntegration } from '@/lib/hooks';
+import { useIntegrations, useUpdateIntegration, useToggleIntegration, useCreateIntegration, useDeleteIntegration, useTestIntegration } from '@/lib/hooks';
 
 interface Integration {
   id: string;
@@ -35,6 +35,10 @@ const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; placeholde
     { key: 'clientId', label: 'Client ID', placeholder: 'Enter Hubtel Client ID' },
     { key: 'clientSecret', label: 'Client Secret', placeholder: 'Enter Hubtel Client Secret' },
   ],
+  theteller: [
+    { key: 'clientId', label: 'API Username', placeholder: 'theTeller API username' },
+    { key: 'clientSecret', label: 'API Key', placeholder: 'theTeller API key' },
+  ],
   resend: [
     { key: 'apiKey', label: 'API Key', placeholder: 're_...' },
   ],
@@ -53,6 +57,10 @@ const CONFIG_FIELDS: Record<string, { key: string; label: string; placeholder: s
   hubtel: [
     { key: 'merchantAccount', label: 'Merchant Account Number', placeholder: 'e.g. HM2706210001' },
     { key: 'callbackUrl', label: 'Callback URL', placeholder: 'https://yourdomain.com/api/webhooks/hubtel' },
+  ],
+  theteller: [
+    { key: 'merchantId', label: 'Merchant ID', placeholder: 'theTeller merchant ID' },
+    { key: 'env', label: 'Environment', placeholder: 'test or live' },
   ],
   resend: [
     { key: 'fromEmail', label: 'From Email', placeholder: 'noreply@estateiq.app' },
@@ -86,6 +94,9 @@ export default function IntegrationsPage() {
   const toggleIntegration = useToggleIntegration();
   const createIntegration = useCreateIntegration();
   const deleteIntegration = useDeleteIntegration();
+  const testIntegration = useTestIntegration();
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [testing, setTesting] = useState<string | null>(null);
 
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -244,6 +255,28 @@ export default function IntegrationsPage() {
               <input type="checkbox" checked={item.isSandbox} onChange={(e) => updateIntegration.mutate({ provider: item.provider, data: { isSandbox: e.target.checked } })} className="rounded" />
               <span className="text-sm">Sandbox / Test Mode</span>
             </label>
+            {testResults[item.provider] && (
+              <span className={`text-xs font-medium ${testResults[item.provider].ok ? 'text-green-600' : 'text-destructive'}`}>
+                {testResults[item.provider].ok ? '✓ ' : '✕ '}{testResults[item.provider].message}
+              </span>
+            )}
+            <Button variant="outline" onClick={() => {
+              setTesting(item.provider);
+              testIntegration.mutate(item.provider, {
+                onSuccess: (res: any) => {
+                  const r = res?.data || res;
+                  setTestResults((prev) => ({ ...prev, [item.provider]: { ok: !!r?.ok, message: r?.message || 'Done' } }));
+                  setTesting(null);
+                },
+                onError: (e: any) => {
+                  setTestResults((prev) => ({ ...prev, [item.provider]: { ok: false, message: e.message || 'Test failed' } }));
+                  setTesting(null);
+                },
+              });
+            }} disabled={testing === item.provider}>
+              {testing === item.provider ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Test Connection
+            </Button>
             <Button onClick={() => handleSave(item.provider)} className="gap-2 ml-auto" disabled={updateIntegration.isPending}>
               {saved === item.provider ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {saved === item.provider ? 'Saved!' : 'Save Configuration'}

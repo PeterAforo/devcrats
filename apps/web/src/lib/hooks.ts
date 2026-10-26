@@ -474,6 +474,12 @@ export function useCreateIntegration() {
   });
 }
 
+export function useTestIntegration() {
+  return useMutation({
+    mutationFn: (provider: string) => api.post(`/integrations/${provider}/test`),
+  });
+}
+
 export function useDeleteIntegration() {
   const qc = useQueryClient();
   return useMutation({

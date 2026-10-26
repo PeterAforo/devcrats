@@ -38,6 +38,13 @@ export class IntegrationsController {
     return this.integrationsService.update(provider, dto);
   }
 
+  @Post(':provider/test')
+  @Roles('super_admin', 'estate_manager')
+  @ApiOperation({ summary: 'Test provider credentials against the live API' })
+  test(@Param('provider') provider: string) {
+    return this.integrationsService.testConnection(provider);
+  }
+
   @Put(':provider/toggle')
   @Roles('super_admin', 'estate_manager')
   @ApiOperation({ summary: 'Toggle integration on/off' })
