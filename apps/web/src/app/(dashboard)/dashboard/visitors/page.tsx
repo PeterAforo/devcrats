@@ -55,6 +55,7 @@ export default function VisitorsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const user = useAuthStore((s) => s.user);
+  const isDemoMode = useAuthStore((s) => s.isDemoMode);
   const isTenant = user?.role === 'tenant';
   const [pickedEstateId, setPickedEstateId] = useState('');
   const { data: estatesData } = useEstates();
@@ -86,7 +87,7 @@ export default function VisitorsPage() {
         status: v.gateLog ? (v.gateLog.exitTime ? 'checked_out' : 'checked_in') : v.isUsed ? 'checked_in' : 'expected',
         gateLogId: v.gateLog?.id,
       }))
-    : localVisitors;
+    : (isDemoMode ? localVisitors : []);
 
   const filtered = visitors.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase()) || v.host.toLowerCase().includes(search.toLowerCase()) || v.phone.includes(search)

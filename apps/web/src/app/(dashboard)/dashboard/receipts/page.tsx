@@ -57,6 +57,7 @@ export default function ReceiptsPage() {
   });
 
   const user = useAuthStore((s) => s.user);
+  const isDemoMode = useAuthStore((s) => s.isDemoMode);
   const role = user?.role || 'tenant';
   const isTenant = role === 'tenant';
   const isLandlord = role === 'landlord';
@@ -88,7 +89,7 @@ export default function ReceiptsPage() {
 
   // Role-based receipt filtering
   const receipts = useMemo(() => {
-    const source = apiReceipts.length > 0 ? apiReceipts : allMockReceipts;
+    const source = apiReceipts.length > 0 ? apiReceipts : (isDemoMode ? allMockReceipts : []);
 
     if (isTenant) {
       const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim().toLowerCase();

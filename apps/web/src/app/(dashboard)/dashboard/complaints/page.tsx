@@ -49,6 +49,7 @@ export default function ComplaintsPage() {
   const qc = useQueryClient();
 
   const user = useAuthStore((s) => s.user);
+  const isDemoMode = useAuthStore((s) => s.isDemoMode);
   const isTenant = user?.role === 'tenant';
   const [pickedEstateId, setPickedEstateId] = useState('');
   const { data: estatesData } = useEstates();
@@ -71,7 +72,7 @@ export default function ComplaintsPage() {
         date: new Date(c.createdAt).toISOString().split('T')[0],
         description: c.description,
       }))
-    : localComplaints;
+    : (isDemoMode ? localComplaints : []);
 
   const filtered = complaints.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase()) || c.reporter.toLowerCase().includes(search.toLowerCase())

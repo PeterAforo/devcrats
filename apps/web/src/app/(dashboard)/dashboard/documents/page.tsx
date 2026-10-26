@@ -18,31 +18,11 @@ interface Doc {
   type: string;
   uploaded: string;
   uploadedBy: string;
-  scope: 'personal' | 'estate';
-  tenantName?: string;
-  unitNumber?: string;
+  url: string;
 }
 
-// Admin/Manager sees all estate documents
-const allDocuments: Doc[] = [
-  { id: '1', name: 'Lease Agreement — Kwame Asante — A-101', category: 'Lease', size: '2.4 MB', type: 'PDF', uploaded: '2024-01-01', uploadedBy: 'Manager', scope: 'personal', tenantName: 'Kwame Asante', unitNumber: 'A-101' },
-  { id: '2', name: 'Lease Agreement — Ama Mensah — A-203', category: 'Lease', size: '2.1 MB', type: 'PDF', uploaded: '2024-03-15', uploadedBy: 'Manager', scope: 'personal', tenantName: 'Ama Mensah', unitNumber: 'A-203' },
-  { id: '3', name: 'Insurance Certificate — 2024', category: 'Insurance', size: '1.8 MB', type: 'PDF', uploaded: '2024-01-10', uploadedBy: 'Admin', scope: 'estate' },
-  { id: '4', name: 'Fire Safety Inspection Report', category: 'Compliance', size: '3.2 MB', type: 'PDF', uploaded: '2024-06-20', uploadedBy: 'Admin', scope: 'estate' },
-  { id: '5', name: 'AGM Minutes — Nov 2024', category: 'Meeting', size: '450 KB', type: 'DOCX', uploaded: '2024-11-18', uploadedBy: 'Manager', scope: 'estate' },
-  { id: '6', name: 'Monthly Financial Report — Jan 2025', category: 'Financial', size: '1.1 MB', type: 'XLSX', uploaded: '2025-02-01', uploadedBy: 'Admin', scope: 'estate' },
-  { id: '7', name: 'Maintenance SLA — CoolAir Ghana', category: 'Contract', size: '890 KB', type: 'PDF', uploaded: '2024-04-01', uploadedBy: 'Manager', scope: 'estate' },
-  { id: '8', name: 'Estate Rules & Regulations', category: 'General', size: '320 KB', type: 'PDF', uploaded: '2023-08-01', uploadedBy: 'Admin', scope: 'estate' },
-  { id: '9', name: 'Ghana Card — Kwame Asante', category: 'ID Document', size: '1.2 MB', type: 'PDF', uploaded: '2024-01-01', uploadedBy: 'Kwame Asante', scope: 'personal', tenantName: 'Kwame Asante', unitNumber: 'A-101' },
-  { id: '10', name: 'Move-in Report — A-101', category: 'Move-in Report', size: '780 KB', type: 'PDF', uploaded: '2024-01-02', uploadedBy: 'Manager', scope: 'personal', tenantName: 'Kwame Asante', unitNumber: 'A-101' },
-  { id: '11', name: 'Lease Agreement — Unit 00AC12', category: 'Lease', size: '2.6 MB', type: 'PDF', uploaded: '2024-02-01', uploadedBy: 'Manager', scope: 'personal', tenantName: 'Kwame Asante', unitNumber: '00AC12' },
-  { id: '12', name: 'Lease Agreement — Unit 00CE08', category: 'Lease', size: '2.3 MB', type: 'PDF', uploaded: '2024-03-01', uploadedBy: 'Manager', scope: 'personal', tenantName: 'Efua Mensah', unitNumber: '00CE08' },
-];
-
-// Demo: tenant "Kwame Asante" is in A-101; landlord owns 00AC12 and 00CE08
-const DEMO_TENANT_NAME = 'Kwame Asante';
-const DEMO_TENANT_UNIT = 'A-101';
-const DEMO_LANDLORD_UNITS = ['00AC12', '00CE08'];
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace(/\/api\/v1\/?$/, '');
+const resolveUrl = (u?: string) => (!u ? '' : u.startsWith('http') ? u : `${API_ORIGIN}${u}`);
 
 const categoryColors: Record<string, string> = {
   Lease: 'info', Insurance: 'success', Compliance: 'warning', Meeting: 'secondary',
@@ -80,41 +60,18 @@ export default function DocumentsPage() {
         type: (d.mimeType?.split('/')[1] || 'file').toUpperCase(),
         uploaded: new Date(d.createdAt).toISOString().split('T')[0],
         uploadedBy: 'User',
-        scope: 'estate' as const,
+        url: resolveUrl(d.fileUrl),
       }))
     : [];
 
-  // Role-based document filtering
   const documents = useMemo(() => {
-    const source = apiDocs.length > 0 ? apiDocs : allDocuments;
-
-    let filtered: Doc[];
-    if (isTenant) {
-      // Tenants see: their own personal docs + shared estate docs (rules, meeting minutes)
-      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_NAME;
-      filtered = source.filter((d) =>
-        (d.scope === 'personal' && d.tenantName === tenantName) ||
-        (d.scope === 'estate' && ['General', 'Meeting'].includes(d.category))
-      );
-    } else if (isLandlord) {
-      // Landlords see: docs related to their units + shared estate docs
-      filtered = source.filter((d) =>
-        (d.scope === 'personal' && d.unitNumber && DEMO_LANDLORD_UNITS.includes(d.unitNumber)) ||
-        (d.scope === 'estate' && ['General', 'Meeting', 'Insurance'].includes(d.category))
-      );
-    } else {
-      // Admin/Manager sees everything
-      filtered = source;
-    }
-
-    // Apply search
+    let filtered = apiDocs;
     if (search) {
       const q = search.toLowerCase();
       filtered = filtered.filter((d) => d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
     }
-
     return filtered;
-  }, [apiDocs, isTenant, isLandlord, user, search]);
+  }, [apiDocs, search]);
 
   const leaseCount = documents.filter((d) => d.category === 'Lease').length;
   const canUpload = isAdmin;
@@ -157,7 +114,7 @@ export default function DocumentsPage() {
         <Card><CardContent className="p-5 flex items-center gap-3"><FolderOpen className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold">{documents.length}</p><p className="text-xs text-muted-foreground">{isTenant ? 'Your Documents' : 'Total Documents'}</p></div></CardContent></Card>
         <Card><CardContent className="p-5 flex items-center gap-3"><FileText className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold">{leaseCount}</p><p className="text-xs text-muted-foreground">Lease Agreements</p></div></CardContent></Card>
         <Card><CardContent className="p-5 flex items-center gap-3"><FileText className="h-8 w-8 text-orange-500" /><div><p className="text-2xl font-bold">{documents.filter((d) => d.category === 'ID Document').length}</p><p className="text-xs text-muted-foreground">ID Documents</p></div></CardContent></Card>
-        <Card><CardContent className="p-5 flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-purple-500" /><div><p className="text-2xl font-bold">{documents.filter((d) => d.scope === 'estate').length}</p><p className="text-xs text-muted-foreground">Estate Documents</p></div></CardContent></Card>
+        <Card><CardContent className="p-5 flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-purple-500" /><div><p className="text-2xl font-bold">{new Set(documents.map((d) => d.category)).size}</p><p className="text-xs text-muted-foreground">Categories</p></div></CardContent></Card>
       </div>
 
       {/* Role-based info banner */}
@@ -202,7 +159,9 @@ export default function DocumentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {documents.length === 0 ? (
+              {isLoading ? (
+                <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-10 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Loading documents...</TableCell></TableRow>
+              ) : documents.length === 0 ? (
                 <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-10 text-muted-foreground">No documents found</TableCell></TableRow>
               ) : (
                 documents.map((d) => (
@@ -215,8 +174,8 @@ export default function DocumentsPage() {
                     {isAdmin && <TableCell>{d.uploadedBy}</TableCell>}
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Download className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!d.url} onClick={() => window.open(d.url, '_blank')}><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!d.url} onClick={() => { const a = document.createElement('a'); a.href = d.url; a.download = d.name; a.target = '_blank'; a.click(); }}><Download className="h-4 w-4" /></Button>
                         {canDelete && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDoc.mutate(d.id)}><Trash2 className="h-4 w-4" /></Button>}
                       </div>
                     </TableCell>

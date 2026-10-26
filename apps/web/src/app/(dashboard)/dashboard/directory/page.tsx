@@ -111,7 +111,7 @@ export default function DirectoryPage() {
           tenants: (p.tenants || []).map((t: any) => ({ ...t, familyMembers: t.familyMembers || [] })),
         })),
       }))
-    : demoTree;
+    : (isDemoMode ? demoTree : []);
 
   const toggleLandlord = (id: string) => {
     const next = new Set(expandedLandlords);

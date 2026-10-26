@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateLandlordDto, UpdateTenantDto } from './dto';
+import { CreateTenantDto, CreateLandlordDto, UpdateTenantDto, UpdateLandlordDto } from './dto';
 
 @Injectable()
 export class PersonsService {
@@ -485,6 +485,40 @@ export class PersonsService {
   async removePropertyFromLandlord(landlordId: string, unitId: string) {
     await this.prisma.propertyOwnership.deleteMany({ where: { landlordId, unitId } });
     return { message: 'Property removed from landlord' };
+  }
+
+  async updateLandlord(id: string, dto: UpdateLandlordDto) {
+    const landlord = await this.prisma.landlord.findUnique({ where: { id } });
+    if (!landlord) throw new NotFoundException('Landlord not found');
+
+    if (dto.email) {
+      const conflict = await this.prisma.user.findFirst({
+        where: { email: dto.email.toLowerCase(), id: { not: landlord.userId } },
+      });
+      if (conflict) throw new ConflictException('Email already registered');
+    }
+
+    await this.prisma.user.update({
+      where: { id: landlord.userId },
+      data: {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email?.toLowerCase(),
+        phone: dto.phone,
+      },
+    });
+
+    await this.prisma.landlord.update({
+      where: { id },
+      data: {
+        bankName: dto.bankName,
+        bankAccountNo: dto.bankAccountNo,
+        bankAccountName: dto.bankAccountName,
+        bankCode: dto.bankCode,
+      },
+    });
+
+    return this.findLandlordById(id);
   }
 
   async deleteLandlord(id: string) {

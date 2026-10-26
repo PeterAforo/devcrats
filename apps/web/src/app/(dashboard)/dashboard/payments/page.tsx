@@ -174,7 +174,7 @@ export default function PaymentsPage() {
         date: new Date(p.createdAt).toISOString().split('T')[0],
         status: p.status || 'completed',
       }))
-    : localPayments;
+    : (isDemoMode ? localPayments : []);
 
   // Role-based payment filtering
   const payments = useMemo(() => {

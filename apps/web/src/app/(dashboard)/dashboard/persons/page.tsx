@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { useTenants, useLandlords, useCreateTenant, useCreateLandlord, useUpdateTenant, useEstates } from '@/lib/hooks';
+import { useTenants, useLandlords, useCreateTenant, useCreateLandlord, useUpdateTenant, useUpdateLandlord, useDeleteTenant, useDeleteLandlord, useEstates } from '@/lib/hooks';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 
@@ -81,6 +81,10 @@ export default function PersonsPage() {
   const createTenantMut = useCreateTenant();
   const createLandlordMut = useCreateLandlord();
   const updateTenantMut = useUpdateTenant();
+  const updateLandlordMut = useUpdateLandlord();
+  const deleteTenantMut = useDeleteTenant();
+  const deleteLandlordMut = useDeleteLandlord();
+  const isDemoMode = useAuthStore((s) => s.isDemoMode);
 
   // Use API data if available
   const tenants: Tenant[] = apiTenants?.data
@@ -98,7 +102,7 @@ export default function PersonsPage() {
         occupants: t.familyMembers?.length ? t.familyMembers.length + 1 : 1, companyName: t.companyName,
         avatarUrl: t.user?.avatarUrl || undefined,
       }))
-    : localTenants;
+    : (isDemoMode ? localTenants : []);
 
   const landlords: Landlord[] = apiLandlords?.data
     ? apiLandlords.data.map((l: any) => ({
@@ -107,7 +111,7 @@ export default function PersonsPage() {
         properties: l.properties?.map((p: any) => p.unit?.building?.estate?.name || p.unit?.building?.name || p.unit?.unitNumber).filter(Boolean) || [],
         bank: l.bankName || '', status: l.user?.isActive ? 'active' : 'inactive',
       }))
-    : localLandlords;
+    : (isDemoMode ? localLandlords : []);
 
   const user = useAuthStore((s) => s.user);
   const [pickedEstateId, setPickedEstateId] = useState('');
@@ -179,8 +183,10 @@ export default function PersonsPage() {
 
   const handleDeleteTenant = (id: string) => {
     if (!confirm('Are you sure you want to remove this tenant?')) return;
-    setLocalTenants(localTenants.filter((t) => t.id !== id));
-    setShowTenantDetail(null);
+    deleteTenantMut.mutate(id, {
+      onSuccess: () => { toast.success('Tenant removed'); setShowTenantDetail(null); },
+      onError: (e: any) => toast.error(e.message || 'Failed to remove tenant'),
+    });
   };
 
   const handleEditTenant = (tenant: Tenant) => {
@@ -212,7 +218,45 @@ export default function PersonsPage() {
       },
     );
   };
-  const handleDeleteLandlord = (id: string) => { setLocalLandlords(localLandlords.filter((l) => l.id !== id)); setShowLandlordDetail(null); };
+  const [editingLandlord, setEditingLandlord] = useState<Landlord | null>(null);
+  const [lEditForm, setLEditForm] = useState({ name: '', email: '', phone: '', bank: '' });
+
+  const handleEditLandlord = (l: Landlord) => {
+    setLEditForm({ name: l.name, email: l.email, phone: l.phone, bank: l.bank });
+    setEditingLandlord(l);
+  };
+
+  const handleSaveLandlordEdit = () => {
+    if (!editingLandlord) return;
+    updateLandlordMut.mutate(
+      {
+        id: editingLandlord.id,
+        data: {
+          firstName: lEditForm.name.split(' ')[0],
+          lastName: lEditForm.name.split(' ').slice(1).join(' ') || undefined,
+          email: lEditForm.email || undefined,
+          phone: lEditForm.phone || undefined,
+          bankName: lEditForm.bank || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Landlord updated');
+          setEditingLandlord(null);
+          setShowLandlordDetail(null);
+        },
+        onError: (e: any) => toast.error(e.message || 'Failed to update landlord'),
+      },
+    );
+  };
+
+  const handleDeleteLandlord = (id: string) => {
+    if (!confirm('Are you sure you want to remove this landlord?')) return;
+    deleteLandlordMut.mutate(id, {
+      onSuccess: () => { toast.success('Landlord removed'); setShowLandlordDetail(null); },
+      onError: (e: any) => toast.error(e.message || 'Failed to remove landlord'),
+    });
+  };
 
   const tenantTypeLabel = (t: TenantType) => t === 'family' ? 'Family' : t === 'company' ? 'Company' : 'Single Person';
   const tenantTypeBadge = (t: TenantType) => t === 'family' ? 'info' : t === 'company' ? 'warning' : 'secondary';
@@ -603,6 +647,7 @@ export default function PersonsPage() {
             </div>
           )}
           <DialogFooter>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => showLandlordDetail && handleEditLandlord(showLandlordDetail)}><Pencil className="h-3 w-3" /> Edit</Button>
             <Button variant="destructive" size="sm" onClick={() => showLandlordDetail && handleDeleteLandlord(showLandlordDetail.id)}>Remove Landlord</Button>
             <Button variant="outline" onClick={() => setShowLandlordDetail(null)}>Close</Button>
           </DialogFooter>
@@ -610,6 +655,28 @@ export default function PersonsPage() {
       </Dialog>
 
       {/* ─── EDIT TENANT DIALOG ─── */}
+      {/* Edit Landlord Dialog */}
+      <Dialog open={!!editingLandlord} onOpenChange={() => setEditingLandlord(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4" /> Edit Landlord</DialogTitle>
+            <DialogDescription>Update landlord details below.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Full Name</Label><Input value={lEditForm.name} onChange={(e) => setLEditForm({ ...lEditForm, name: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Phone</Label><Input value={lEditForm.phone} onChange={(e) => setLEditForm({ ...lEditForm, phone: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Email</Label><Input type="email" value={lEditForm.email} onChange={(e) => setLEditForm({ ...lEditForm, email: e.target.value })} /></div>
+            <div className="space-y-2"><Label>Bank</Label><Input value={lEditForm.bank} onChange={(e) => setLEditForm({ ...lEditForm, bank: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingLandlord(null)}>Cancel</Button>
+            <Button onClick={handleSaveLandlordEdit} disabled={!lEditForm.name || updateLandlordMut.isPending}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!editingTenant} onOpenChange={() => setEditingTenant(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>

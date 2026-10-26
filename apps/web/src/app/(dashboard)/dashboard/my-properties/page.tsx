@@ -131,7 +131,7 @@ export default function MyPropertiesPage() {
           rentAmount: lease?.rentAmount ?? null,
         };
       })
-    : localProperties;
+    : (isDemoMode ? localProperties : []);
 
   const { data: estatesData } = useEstates();
   const estates: any[] = estatesData?.data || [];

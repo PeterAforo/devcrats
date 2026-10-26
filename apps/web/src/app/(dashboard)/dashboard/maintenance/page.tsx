@@ -52,6 +52,7 @@ export default function MaintenancePage() {
 
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const isDemoMode = useAuthStore((s) => s.isDemoMode);
   const isTenant = user?.role === 'tenant';
   const [pickedEstateId, setPickedEstateId] = useState('');
   const { data: estatesData } = useEstates();
@@ -84,7 +85,7 @@ export default function MaintenancePage() {
         tenant: r.tenant?.user?.firstName ? `${r.tenant.user.firstName} ${r.tenant.user.lastName}` : 'Unknown',
         description: r.description,
       }))
-    : localRequests;
+    : (isDemoMode ? localRequests : []);
 
   const filtered = requests.filter((r) =>
     r.title.toLowerCase().includes(search.toLowerCase()) || r.tenant.toLowerCase().includes(search.toLowerCase())

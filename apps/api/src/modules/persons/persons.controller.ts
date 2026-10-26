@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PersonsService } from './persons.service';
-import { CreateTenantDto, CreateLandlordDto, CreateFamilyMemberDto, UpdateTenantDto } from './dto';
+import { CreateTenantDto, CreateLandlordDto, CreateFamilyMemberDto, UpdateTenantDto, UpdateLandlordDto } from './dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 
@@ -174,6 +174,13 @@ export class PersonsController {
   @ApiOperation({ summary: 'Remove a property from landlord' })
   removeProperty(@Param('id') landlordId: string, @Param('unitId') unitId: string) {
     return this.personsService.removePropertyFromLandlord(landlordId, unitId);
+  }
+
+  @Put('landlords/:id')
+  @Roles('super_admin', 'estate_manager')
+  @ApiOperation({ summary: 'Update landlord details' })
+  updateLandlord(@Param('id') id: string, @Body() dto: UpdateLandlordDto) {
+    return this.personsService.updateLandlord(id, dto);
   }
 
   @Delete('landlords/:id')

@@ -56,7 +56,11 @@ const demoTenantData = {
 export default function MyUnitPage() {
   const { isDemoMode } = useAuthStore();
   const { data: profile, isLoading } = useMyTenantProfile();
-  const tenant = profile?.data || demoTenantData;
+  const tenant = profile?.data || (isDemoMode ? demoTenantData : null);
+
+  if (!isLoading && !tenant) {
+    return <div className="p-10 text-center text-muted-foreground">No tenant profile is linked to this account yet.</div>;
+  }
   const lease = tenant?.leases?.find((l: any) => l.status === 'active') || tenant?.leases?.[0];
   const unit = lease?.unit;
   const building = unit?.building;
