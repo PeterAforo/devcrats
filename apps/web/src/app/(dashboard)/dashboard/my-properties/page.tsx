@@ -13,7 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth-store';
-import { useEstates } from '@/lib/hooks';
+import { useEstates, useBuildings, useUnits, useMyLandlordProfile, useAddPropertyToLandlord, useRemovePropertyFromLandlord, useCreateTenant } from '@/lib/hooks';
+import { toast } from 'sonner';
 
 const demoProperties = [
   {
@@ -105,18 +106,40 @@ export default function MyPropertiesPage() {
   const [showAddTenant, setShowAddTenant] = useState(false);
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
-  const [detailProperty, setDetailProperty] = useState<typeof demoProperties[0] | null>(null);
-  const [propForm, setPropForm] = useState({ houseNumber: '', estateId: '', clusterId: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
-  const [localProperties, setLocalProperties] = useState(demoProperties);
-  const properties = localProperties;
+  const [detailProperty, setDetailProperty] = useState<any | null>(null);
+  const [propForm, setPropForm] = useState({ estateId: '', buildingId: '', unitId: '', occupancyType: 'rented' });
+  const [tenantForm, setTenantForm] = useState({ firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '', occupation: '', nationality: 'Ghanaian', leaseStart: '', leaseEnd: '', rentAmount: '', depositAmount: '', emergencyContact: '', emergencyPhone: '' });
+  const [localProperties] = useState(demoProperties);
+
+  const { data: myLandlord, isLoading } = useMyLandlordProfile();
+  const addProperty = useAddPropertyToLandlord();
+  const removeProperty = useRemovePropertyFromLandlord();
+  const createTenant = useCreateTenant();
+  const landlordId = myLandlord?.data?.id;
+  const leases: any[] = myLandlord?.data?.leases || [];
+
+  const properties: any[] = myLandlord?.data
+    ? (myLandlord.data.properties || []).map((p: any) => {
+        const lease = leases.find((l: any) => l.unit?.id === p.unit?.id);
+        return {
+          id: p.id || p.unit?.id,
+          occupancyType: p.occupancyType,
+          unit: p.unit,
+          tenant: lease?.tenant?.user
+            ? { ...lease.tenant.user, leaseStart: lease.startDate, leaseEnd: lease.endDate, familyMembers: lease.tenant.familyMembers || [] }
+            : null,
+          rentAmount: lease?.rentAmount ?? null,
+        };
+      })
+    : localProperties;
 
   const { data: estatesData } = useEstates();
-  const estates: any[] = estatesData?.data || [
-    { id: 'e1', name: 'Devtraco Courts Estate', city: 'Tema', clusters: [{ id: 'c1', name: 'Bellavilla' }, { id: 'c2', name: 'Rosavilla' }] },
-    { id: 'e2', name: 'East Legon Hills', city: 'Accra', clusters: [{ id: 'c3', name: 'Phase 1' }, { id: 'c4', name: 'Phase 2' }] },
-  ];
-  const selectedEstate = estates.find((e: any) => e.id === propForm.estateId);
-  const clusters: any[] = selectedEstate?.clusters || [];
+  const estates: any[] = estatesData?.data || [];
+  const { data: buildingsData } = useBuildings(propForm.estateId);
+  const buildings: any[] = buildingsData?.data || [];
+  const { data: unitsData } = useUnits(propForm.buildingId);
+  const units: any[] = unitsData?.data || [];
+  const selectedProp = properties.find((p) => p.id === selectedProperty);
 
   const totalRentalIncome = properties
     .filter((p) => p.occupancyType === 'rented' && p.rentAmount)
@@ -188,6 +211,12 @@ export default function MyPropertiesPage() {
 
       {/* Properties List */}
       <div className="space-y-4">
+        {isLoading && (
+          <Card><CardContent className="py-8 flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading your properties...</CardContent></Card>
+        )}
+        {!isLoading && properties.length === 0 && (
+          <Card><CardContent className="py-12 text-center"><Home className="mx-auto h-12 w-12 text-muted-foreground mb-4" /><p className="text-lg font-medium">No properties yet</p><p className="text-muted-foreground">Add a unit to your portfolio to get started.</p></CardContent></Card>
+        )}
         {properties.map((prop) => (
           <Card key={prop.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailProperty(prop)}>
             <CardContent className="pt-6">
@@ -269,72 +298,50 @@ export default function MyPropertiesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Estate *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.estateId} onChange={(e) => setPropForm({ ...propForm, estateId: e.target.value, clusterId: '' })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.estateId} onChange={(e) => setPropForm({ ...propForm, estateId: e.target.value, buildingId: '', unitId: '' })}>
                   <option value="">Select Estate...</option>
                   {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
                 </select>
               </div>
               <div>
-                <Label>City</Label>
-                <Input value={selectedEstate?.city || ''} disabled className="opacity-60" />
-                <p className="text-xs text-muted-foreground mt-0.5">Auto-derived from estate</p>
+                <Label>Building *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.buildingId} disabled={!propForm.estateId} onChange={(e) => setPropForm({ ...propForm, buildingId: e.target.value, unitId: '' })}>
+                  <option value="">{propForm.estateId ? 'Select building...' : 'Select estate first'}</option>
+                  {buildings.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Block / Cluster *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.clusterId} onChange={(e) => setPropForm({ ...propForm, clusterId: e.target.value })} disabled={!propForm.estateId}>
-                  <option value="">{propForm.estateId ? 'Select Block/Cluster...' : 'Select estate first'}</option>
-                  {clusters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <Label>Unit *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.unitId} disabled={!propForm.buildingId} onChange={(e) => setPropForm({ ...propForm, unitId: e.target.value })}>
+                  <option value="">{propForm.buildingId ? 'Select unit...' : 'Select building first'}</option>
+                  {units.map((u: any) => <option key={u.id} value={u.id}>{u.unitNumber || u.houseNumber}{u.bedrooms ? ` — ${u.bedrooms} bed` : ''}</option>)}
                 </select>
               </div>
               <div>
-                <Label>House / Unit Number *</Label>
-                <Input placeholder="e.g. 00AC12" value={propForm.houseNumber} onChange={(e) => setPropForm({ ...propForm, houseNumber: e.target.value })} />
+                <Label>Occupancy Type</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.occupancyType} onChange={(e) => setPropForm({ ...propForm, occupancyType: e.target.value })}>
+                  <option value="rented">Rented Out</option>
+                  <option value="self_occupied">Self Occupied</option>
+                </select>
               </div>
-            </div>
-            <div className="grid grid-cols-4 gap-4">
-              <div><Label>Bedrooms</Label><Input type="number" value={propForm.bedrooms} onChange={(e) => setPropForm({ ...propForm, bedrooms: e.target.value })} /></div>
-              <div><Label>Bathrooms</Label><Input type="number" value={propForm.bathrooms} onChange={(e) => setPropForm({ ...propForm, bathrooms: e.target.value })} /></div>
-              <div><Label>Size (sqft)</Label><Input type="number" value={propForm.sizeSqft} onChange={(e) => setPropForm({ ...propForm, sizeSqft: e.target.value })} /></div>
-              <div><Label>Floor</Label><Input type="number" value={propForm.floor} onChange={(e) => setPropForm({ ...propForm, floor: e.target.value })} /></div>
-            </div>
-            <div>
-              <Label>Occupancy Type</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={propForm.occupancyType} onChange={(e) => setPropForm({ ...propForm, occupancyType: e.target.value })}>
-                <option value="rented">Rented Out</option>
-                <option value="self_occupied">Self Occupied</option>
-              </select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddProperty(false)}>Cancel</Button>
-            <Button className="bg-gold hover:bg-gold/90 text-navy-900" disabled={!propForm.houseNumber || !propForm.estateId} onClick={() => {
-              const cluster = clusters.find((c: any) => c.id === propForm.clusterId);
-              const newProp = {
-                id: 'P' + Date.now(),
-                occupancyType: propForm.occupancyType,
-                unit: {
-                  id: 'U' + Date.now(),
-                  unitNumber: propForm.houseNumber,
-                  houseNumber: propForm.houseNumber,
-                  floor: Number(propForm.floor) || 1,
-                  bedrooms: Number(propForm.bedrooms) || 3,
-                  bathrooms: Number(propForm.bathrooms) || 2,
-                  sizeSqft: Number(propForm.sizeSqft) || 0,
-                  status: 'vacant' as const,
-                  building: {
-                    name: (cluster?.name as string) || 'Main',
-                    estate: { name: (selectedEstate?.name as string) || '', address: (selectedEstate?.address as string) || '', city: (selectedEstate?.city as string) || '' },
-                    cluster: cluster ? { name: cluster.name as string } : null as null,
+            <Button className="bg-gold hover:bg-gold/90 text-navy-900" disabled={!propForm.unitId || !landlordId || addProperty.isPending} onClick={() => {
+              addProperty.mutate(
+                { landlordId: landlordId!, data: { unitId: propForm.unitId, occupancyType: propForm.occupancyType } },
+                {
+                  onSuccess: () => {
+                    toast.success('Property added to your portfolio');
+                    setPropForm({ estateId: '', buildingId: '', unitId: '', occupancyType: 'rented' });
+                    setShowAddProperty(false);
                   },
+                  onError: (e: any) => toast.error(e.message || 'Failed to add property'),
                 },
-                tenant: null as null,
-                rentAmount: null as null,
-              };
-              setLocalProperties([newProp as typeof localProperties[0], ...localProperties]);
-              setPropForm({ houseNumber: '', estateId: '', clusterId: '', bedrooms: '3', bathrooms: '2', sizeSqft: '', floor: '1', occupancyType: 'rented' });
-              setShowAddProperty(false);
+              );
             }}>
               Add Property
             </Button>
@@ -373,7 +380,7 @@ export default function MyPropertiesPage() {
                   {detailProperty.tenant.familyMembers && detailProperty.tenant.familyMembers.length > 0 && (
                     <div>
                       <p className="text-xs text-muted-foreground mt-2 mb-1">Family Members ({detailProperty.tenant.familyMembers.length})</p>
-                      {detailProperty.tenant.familyMembers.map((fm) => (
+                      {detailProperty.tenant.familyMembers.map((fm: any) => (
                         <div key={fm.id} className="flex justify-between text-sm py-1 border-b last:border-0">
                           <span>{fm.firstName} {fm.lastName}</span>
                           <Badge variant="outline" className="text-[10px]">{fm.relationship}</Badge>
@@ -395,10 +402,12 @@ export default function MyPropertiesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="destructive" size="sm" onClick={() => {
-              if (detailProperty) {
-                setLocalProperties(localProperties.filter(p => p.id !== detailProperty.id));
-                setDetailProperty(null);
+            <Button variant="destructive" size="sm" disabled={removeProperty.isPending} onClick={() => {
+              if (detailProperty && landlordId) {
+                removeProperty.mutate({ landlordId, unitId: detailProperty.unit.id }, {
+                  onSuccess: () => { toast.success('Property removed'); setDetailProperty(null); },
+                  onError: (e: any) => toast.error(e.message || 'Failed to remove property'),
+                });
               }
             }}>Remove Property</Button>
             <Button variant="outline" onClick={() => setDetailProperty(null)}>Close</Button>
@@ -406,33 +415,33 @@ export default function MyPropertiesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Tenant Dialog (placeholder) */}
+      {/* Add Tenant Dialog */}
       <Dialog open={showAddTenant} onOpenChange={setShowAddTenant}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Tenant</DialogTitle>
+            <DialogTitle>Add Tenant {selectedProp ? `— House ${selectedProp.unit?.houseNumber || selectedProp.unit?.unitNumber}` : ''}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>First Name</Label>
-                <Input placeholder="e.g. Kwame" />
+                <Label>First Name *</Label>
+                <Input placeholder="e.g. Kwame" value={tenantForm.firstName} onChange={(e) => setTenantForm({ ...tenantForm, firstName: e.target.value })} />
               </div>
               <div>
-                <Label>Last Name</Label>
-                <Input placeholder="e.g. Asante" />
+                <Label>Last Name *</Label>
+                <Input placeholder="e.g. Asante" value={tenantForm.lastName} onChange={(e) => setTenantForm({ ...tenantForm, lastName: e.target.value })} />
               </div>
               <div>
-                <Label>Email</Label>
-                <Input type="email" placeholder="e.g. kwame@email.com" />
+                <Label>Email *</Label>
+                <Input type="email" placeholder="e.g. kwame@email.com" value={tenantForm.email} onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })} />
               </div>
               <div>
                 <Label>Phone</Label>
-                <Input placeholder="+233 24 123 4567" />
+                <Input placeholder="+233 24 123 4567" value={tenantForm.phone} onChange={(e) => setTenantForm({ ...tenantForm, phone: e.target.value })} />
               </div>
               <div>
                 <Label>ID Type</Label>
-                <Select>
+                <Select value={tenantForm.idType} onValueChange={(v) => setTenantForm({ ...tenantForm, idType: v })}>
                   <SelectTrigger><SelectValue placeholder="Select ID type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ghana_card">Ghana Card</SelectItem>
@@ -442,31 +451,31 @@ export default function MyPropertiesPage() {
               </div>
               <div>
                 <Label>ID Number</Label>
-                <Input placeholder="GHA-123456789-0" />
+                <Input placeholder="GHA-123456789-0" value={tenantForm.idNumber} onChange={(e) => setTenantForm({ ...tenantForm, idNumber: e.target.value })} />
               </div>
               <div>
                 <Label>Occupation</Label>
-                <Input placeholder="e.g. Software Engineer" />
+                <Input placeholder="e.g. Software Engineer" value={tenantForm.occupation} onChange={(e) => setTenantForm({ ...tenantForm, occupation: e.target.value })} />
               </div>
               <div>
                 <Label>Nationality</Label>
-                <Input placeholder="Ghanaian" defaultValue="Ghanaian" />
+                <Input placeholder="Ghanaian" value={tenantForm.nationality} onChange={(e) => setTenantForm({ ...tenantForm, nationality: e.target.value })} />
               </div>
               <div>
-                <Label>Lease Start Date</Label>
-                <Input type="date" />
+                <Label>Lease Start Date *</Label>
+                <Input type="date" value={tenantForm.leaseStart} onChange={(e) => setTenantForm({ ...tenantForm, leaseStart: e.target.value })} />
               </div>
               <div>
-                <Label>Lease End Date</Label>
-                <Input type="date" />
+                <Label>Lease End Date *</Label>
+                <Input type="date" value={tenantForm.leaseEnd} onChange={(e) => setTenantForm({ ...tenantForm, leaseEnd: e.target.value })} />
               </div>
               <div>
                 <Label>Monthly Rent (GH₵)</Label>
-                <Input type="number" placeholder="2500" />
+                <Input type="number" placeholder="2500" value={tenantForm.rentAmount} onChange={(e) => setTenantForm({ ...tenantForm, rentAmount: e.target.value })} />
               </div>
               <div>
                 <Label>Security Deposit (GH₵)</Label>
-                <Input type="number" placeholder="5000" />
+                <Input type="number" placeholder="5000" value={tenantForm.depositAmount} onChange={(e) => setTenantForm({ ...tenantForm, depositAmount: e.target.value })} />
               </div>
             </div>
             <Separator />
@@ -475,11 +484,11 @@ export default function MyPropertiesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contact Name</Label>
-                  <Input placeholder="e.g. Ama Owusu" />
+                  <Input placeholder="e.g. Ama Owusu" value={tenantForm.emergencyContact} onChange={(e) => setTenantForm({ ...tenantForm, emergencyContact: e.target.value })} />
                 </div>
                 <div>
                   <Label>Contact Phone</Label>
-                  <Input placeholder="+233 20 555 1234" />
+                  <Input placeholder="+233 20 555 1234" value={tenantForm.emergencyPhone} onChange={(e) => setTenantForm({ ...tenantForm, emergencyPhone: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -490,7 +499,43 @@ export default function MyPropertiesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddTenant(false)}>Cancel</Button>
-            <Button className="bg-gold hover:bg-gold/90 text-navy-900">
+            <Button
+              className="bg-gold hover:bg-gold/90 text-navy-900"
+              disabled={!tenantForm.firstName || !tenantForm.lastName || !tenantForm.email || !tenantForm.leaseStart || !tenantForm.leaseEnd || !selectedProp || createTenant.isPending}
+              onClick={() => {
+                const estateId = selectedProp?.unit?.building?.estate?.id;
+                createTenant.mutate(
+                  {
+                    firstName: tenantForm.firstName,
+                    lastName: tenantForm.lastName,
+                    email: tenantForm.email,
+                    phone: tenantForm.phone || undefined,
+                    estateId,
+                    unitId: selectedProp?.unit?.id,
+                    landlordId,
+                    leaseStartDate: tenantForm.leaseStart,
+                    leaseEndDate: tenantForm.leaseEnd,
+                    rentAmount: Number(tenantForm.rentAmount) || undefined,
+                    depositAmount: Number(tenantForm.depositAmount) || undefined,
+                    idType: tenantForm.idType || undefined,
+                    idNumber: tenantForm.idNumber || undefined,
+                    occupation: tenantForm.occupation || undefined,
+                    nationality: tenantForm.nationality || undefined,
+                    emergencyContact: tenantForm.emergencyContact || undefined,
+                    emergencyPhone: tenantForm.emergencyPhone || undefined,
+                  },
+                  {
+                    onSuccess: (res: any) => {
+                      const creds = res?.data?.credentials;
+                      toast.success(creds ? `Tenant added. Temp password: ${creds.tempPassword}` : 'Tenant added');
+                      setTenantForm({ firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '', occupation: '', nationality: 'Ghanaian', leaseStart: '', leaseEnd: '', rentAmount: '', depositAmount: '', emergencyContact: '', emergencyPhone: '' });
+                      setShowAddTenant(false);
+                    },
+                    onError: (e: any) => toast.error(e.message || 'Failed to add tenant'),
+                  },
+                );
+              }}
+            >
               <UserPlus className="mr-2 h-4 w-4" />
               Add Tenant & Send Credentials
             </Button>

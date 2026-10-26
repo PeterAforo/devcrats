@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Users, Building2, Home, Phone, Mail, ChevronDown, ChevronRight, CreditCard, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Building2, Home, Phone, Mail, ChevronDown, ChevronRight, CreditCard, Search, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
+import { useLandlordTenantTree, useEstates } from '@/lib/hooks';
 
 const demoTree = [
   {
@@ -87,11 +88,30 @@ const demoTree = [
 
 export default function DirectoryPage() {
   const { isDemoMode } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
-  const [expandedLandlords, setExpandedLandlords] = useState<Set<string>>(new Set(demoTree.map(t => t.landlord.id)));
+  const [pickedEstateId, setPickedEstateId] = useState('');
+  const { data: estatesData } = useEstates();
+  const estates: any[] = estatesData?.data || [];
+  const estateId = user?.estateId || pickedEstateId || estates[0]?.id || '';
+  const { data: treeData, isLoading } = useLandlordTenantTree(estateId);
+  const [expandedLandlords, setExpandedLandlords] = useState<Set<string>>(new Set());
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
 
-  const tree = demoTree;
+  useEffect(() => {
+    if (treeData?.data) setExpandedLandlords(new Set(treeData.data.map((t: any) => t.landlord.id)));
+  }, [treeData]);
+
+  const tree: any[] = treeData?.data
+    ? treeData.data.map((item: any) => ({
+        landlord: item.landlord,
+        properties: (item.properties || []).map((p: any) => ({
+          ...p,
+          unit: { ...p.unit, building: p.unit?.building?.name || '—' },
+          tenants: (p.tenants || []).map((t: any) => ({ ...t, familyMembers: t.familyMembers || [] })),
+        })),
+      }))
+    : demoTree;
 
   const toggleLandlord = (id: string) => {
     const next = new Set(expandedLandlords);
@@ -106,23 +126,31 @@ export default function DirectoryPage() {
   };
 
   const totalLandlords = tree.length;
-  const totalProperties = tree.reduce((s, t) => s + t.properties.length, 0);
-  const totalTenants = tree.reduce((s, t) => s + t.properties.reduce((s2, p) => s2 + p.tenants.length, 0), 0);
-  const totalOccupants = tree.reduce((s, t) => s + t.properties.reduce((s2, p) => s2 + p.tenants.reduce((s3, tn) => s3 + 1 + tn.familyMembers.length, 0), 0), 0);
+  const totalProperties = tree.reduce((s: number, t: any) => s + t.properties.length, 0);
+  const totalTenants = tree.reduce((s: number, t: any) => s + t.properties.reduce((s2: number, p: any) => s2 + p.tenants.length, 0), 0);
+  const totalOccupants = tree.reduce((s: number, t: any) => s + t.properties.reduce((s2: number, p: any) => s2 + p.tenants.reduce((s3: number, tn: any) => s3 + 1 + tn.familyMembers.length, 0), 0), 0);
 
   const filteredTree = search
-    ? tree.filter(t => {
+    ? tree.filter((t: any) => {
         const llName = `${t.landlord.firstName} ${t.landlord.lastName}`.toLowerCase();
-        const hasTenantMatch = t.properties.some(p => p.tenants.some(tn => `${tn.firstName} ${tn.lastName}`.toLowerCase().includes(search.toLowerCase())));
+        const hasTenantMatch = t.properties.some((p: any) => p.tenants.some((tn: any) => `${tn.firstName} ${tn.lastName}`.toLowerCase().includes(search.toLowerCase())));
         return llName.includes(search.toLowerCase()) || hasTenantMatch;
       })
     : tree;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-heading font-bold">Estate Directory</h1>
-        <p className="text-muted-foreground">Landlord-tenant hierarchy tree view</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Estate Directory</h1>
+          <p className="text-muted-foreground">Landlord-tenant hierarchy tree view</p>
+        </div>
+        {!user?.estateId && (
+          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={pickedEstateId} onChange={(e) => setPickedEstateId(e.target.value)}>
+            <option value="">Select estate...</option>
+            {estates.map((est: any) => <option key={est.id} value={est.id}>{est.name}</option>)}
+          </select>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -166,7 +194,10 @@ export default function DirectoryPage() {
       </div>
 
       <div className="space-y-3">
-        {filteredTree.map((item) => (
+        {isLoading && (
+          <Card><CardContent className="py-8 flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading directory...</CardContent></Card>
+        )}
+        {!isLoading && filteredTree.map((item) => (
           <Card key={item.landlord.id}>
             <CardContent className="pt-4 pb-2">
               {/* Landlord Row */}
@@ -187,14 +218,14 @@ export default function DirectoryPage() {
                 </div>
                 <div className="flex gap-2">
                   <Badge variant="outline">{item.properties.length} properties</Badge>
-                  <Badge className="bg-navy-500 text-white">{item.properties.reduce((s, p) => s + p.tenants.length, 0)} tenants</Badge>
+                  <Badge className="bg-navy-500 text-white">{item.properties.reduce((s: number, p: any) => s + p.tenants.length, 0)} tenants</Badge>
                 </div>
               </div>
 
               {/* Properties */}
               {expandedLandlords.has(item.landlord.id) && (
                 <div className="ml-12 mt-3 space-y-2">
-                  {item.properties.map((prop) => (
+                  {item.properties.map((prop: any) => (
                     <div key={prop.unit.id} className="border rounded-lg p-3">
                       <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleUnit(prop.unit.id)}>
                         {prop.tenants.length > 0 ? (
@@ -211,7 +242,7 @@ export default function DirectoryPage() {
                       {/* Tenants */}
                       {expandedUnits.has(prop.unit.id) && prop.tenants.length > 0 && (
                         <div className="ml-8 mt-2 space-y-2">
-                          {prop.tenants.map((tenant) => (
+                          {prop.tenants.map((tenant: any) => (
                             <div key={tenant.id} className="border-l-2 border-gold pl-3 py-2">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-8 w-8">
@@ -229,7 +260,7 @@ export default function DirectoryPage() {
                               </div>
                               {tenant.familyMembers.length > 0 && (
                                 <div className="ml-10 mt-1 flex flex-wrap gap-1">
-                                  {tenant.familyMembers.map((fm) => (
+                                  {tenant.familyMembers.map((fm: any) => (
                                     <Badge key={fm.id} variant="outline" className="text-xs">
                                       {fm.firstName} ({fm.relationship})
                                     </Badge>

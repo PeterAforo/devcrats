@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, User, Phone, Calendar, CreditCard, Camera, Trash2 } from 'lucide-react';
+import { Users, User, Phone, Calendar, CreditCard, Camera, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth-store';
+import { useMyTenantProfile } from '@/lib/hooks';
 
 const demoFamilyMembers = [
   {
@@ -51,7 +52,8 @@ function calculateAge(dob: string): number {
 
 export default function MyFamilyPage() {
   const { isDemoMode } = useAuthStore();
-  const familyMembers = demoFamilyMembers;
+  const { data: profile, isLoading } = useMyTenantProfile();
+  const familyMembers: any[] = profile?.data ? profile.data.familyMembers || [] : isDemoMode ? demoFamilyMembers : [];
 
   return (
     <div className="space-y-6">
@@ -65,7 +67,9 @@ export default function MyFamilyPage() {
         </Badge>
       </div>
 
-      {familyMembers.length === 0 ? (
+      {isLoading ? (
+        <Card><CardContent className="py-12 flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading family members...</CardContent></Card>
+      ) : familyMembers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

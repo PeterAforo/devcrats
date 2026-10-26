@@ -1,10 +1,11 @@
 'use client';
 
-import { Home, Building2, User, Phone, Mail, Calendar, MapPin, FileText, Shield } from 'lucide-react';
+import { Home, Building2, User, Phone, Mail, Calendar, MapPin, FileText, Shield, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
+import { useMyTenantProfile } from '@/lib/hooks';
 
 const demoTenantData = {
   id: 'T1',
@@ -54,8 +55,9 @@ const demoTenantData = {
 
 export default function MyUnitPage() {
   const { isDemoMode } = useAuthStore();
-  const tenant = demoTenantData;
-  const lease = tenant.leases[0];
+  const { data: profile, isLoading } = useMyTenantProfile();
+  const tenant = profile?.data || demoTenantData;
+  const lease = tenant?.leases?.find((l: any) => l.status === 'active') || tenant?.leases?.[0];
   const unit = lease?.unit;
   const building = unit?.building;
   const landlord = lease?.landlord;
@@ -67,7 +69,9 @@ export default function MyUnitPage() {
         <p className="text-muted-foreground">Your property details and lease information</p>
       </div>
 
-      {!lease ? (
+      {isLoading ? (
+        <Card><CardContent className="py-12 flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading your unit...</CardContent></Card>
+      ) : !lease ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Home className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
