@@ -11,7 +11,7 @@ import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
-import { TOTP, NobleCryptoPlugin, ScureBase32Plugin, generateSecret, generateURI } from 'otplib';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -99,7 +99,7 @@ export class AuthService {
       if (!dto.mfaCode) {
         return { mfaRequired: true };
       }
-      const { valid } = await this.totp(user.mfaSecret).verify(dto.mfaCode);
+      const valid = this.totpVerify(dto.mfaCode, user.mfaSecret);
       if (!valid) {
         await this.recordLoginAttempt(user.id, dto.email, false, 'Invalid MFA code', ipAddress, userAgent);
         throw new UnauthorizedException('Invalid authentication code');
@@ -366,8 +366,48 @@ export class AuthService {
     return { message: 'Password updated successfully' };
   }
 
-  private totp(secret: string) {
-    return new TOTP({ secret, crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() });
+  // RFC 6238 TOTP with built-in crypto — no external dependency, safe for serverless bundling
+  private base32Encode(buf: Buffer): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+    for (const b of buf) bits += b.toString(2).padStart(8, '0');
+    let out = '';
+    for (let i = 0; i < bits.length; i += 5) {
+      const chunk = bits.slice(i, i + 5).padEnd(5, '0');
+      out += alphabet[parseInt(chunk, 2)];
+    }
+    return out;
+  }
+
+  private base32Decode(input: string): Buffer {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+    for (const c of input.toUpperCase().replace(/=+$/, '')) {
+      const v = alphabet.indexOf(c);
+      if (v >= 0) bits += v.toString(2).padStart(5, '0');
+    }
+    const bytes: number[] = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+    return Buffer.from(bytes);
+  }
+
+  private totpCode(secret: string, counter: number): string {
+    const key = this.base32Decode(secret);
+    const buf = Buffer.alloc(8);
+    buf.writeBigUInt64BE(BigInt(counter));
+    const hmac = crypto.createHmac('sha1', key).update(buf).digest();
+    const offset = hmac[hmac.length - 1] & 0x0f;
+    const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+    return code.toString().padStart(6, '0');
+  }
+
+  private totpVerify(token: string, secret: string): boolean {
+    if (!/^\d{6}$/.test(token)) return false;
+    const counter = Math.floor(Date.now() / 1000 / 30);
+    for (let w = -1; w <= 1; w++) {
+      if (this.totpCode(secret, counter + w) === token) return true;
+    }
+    return false;
   }
 
   async mfaSetup(userId: string) {
@@ -375,19 +415,19 @@ export class AuthService {
     if (!user) throw new BadRequestException('User not found');
     if (user.mfaEnabled) throw new BadRequestException('MFA is already enabled');
 
-    const secret = generateSecret();
+    const secret = this.base32Encode(crypto.randomBytes(20));
     await this.prisma.user.update({ where: { id: userId }, data: { mfaSecret: secret } });
 
     return {
       secret,
-      otpauthUrl: generateURI({ issuer: 'EstateIQ', label: user.email, secret }),
+      otpauthUrl: `otpauth://totp/EstateIQ:${encodeURIComponent(user.email)}?secret=${secret}&issuer=EstateIQ`,
     };
   }
 
   async mfaEnable(userId: string, code: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.mfaSecret) throw new BadRequestException('Run MFA setup first');
-    const { valid } = await this.totp(user.mfaSecret).verify(code);
+    const valid = this.totpVerify(code, user.mfaSecret);
     if (!valid) {
       throw new BadRequestException('Invalid authentication code');
     }
@@ -398,7 +438,7 @@ export class AuthService {
   async mfaDisable(userId: string, code: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.mfaEnabled || !user.mfaSecret) throw new BadRequestException('MFA is not enabled');
-    const { valid } = await this.totp(user.mfaSecret).verify(code);
+    const valid = this.totpVerify(code, user.mfaSecret);
     if (!valid) {
       throw new BadRequestException('Invalid authentication code');
     }
