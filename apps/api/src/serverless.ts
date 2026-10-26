@@ -43,7 +43,10 @@ server.use(cors(corsOptions));
 // consumed stream throws "Invalid JSON" — skip when body is set.
 server.use((req: any, res: any, next: any) => {
   if (req.body !== undefined) return next();
-  express.json({ limit: '10mb' })(req, res, next);
+  express.json({
+    limit: '10mb',
+    verify: (r: any, _res: any, buf: Buffer) => { r.rawBody = buf; },
+  })(req, res, next);
 });
 server.use((req: any, res: any, next: any) => {
   if (req.body !== undefined) return next();
@@ -58,7 +61,11 @@ async function bootstrapServer(): Promise<NestExpressApplication> {
   }
 
   const expressAdapter = new ExpressAdapter(server);
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, expressAdapter);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, expressAdapter, {
+    // Body parsing is handled above on the shared server — Nest's parsers would
+    // try to re-read the already-consumed Vercel request stream ("Invalid JSON")
+    bodyParser: false,
+  });
 
   app.setGlobalPrefix('api/v1', { exclude: ['/'] });
 
