@@ -53,6 +53,11 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
+    // Let the browser set multipart boundaries for FormData bodies
+    if (fetchOptions.body instanceof FormData) {
+      delete (headers as Record<string, string>)['Content-Type'];
+    }
+
     const authToken = token || this.accessToken;
     if (authToken) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
@@ -98,8 +103,8 @@ class ApiClient {
     return this.fetch<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: data,
-      headers: isFormData ? { ...(options?.headers as Record<string, string>), 'Content-Type': 'multipart/form-data' } : options?.headers,
+      body: isFormData ? data : data !== undefined ? JSON.stringify(data) : undefined,
+      headers: options?.headers,
     });
   }
 
