@@ -121,6 +121,7 @@ export class PaymentsService {
     method: string;
     reference: string;
     gateway: string;
+    gatewayRef?: string;
   }) {
     return this.prisma.payment.create({
       data: {
@@ -129,9 +130,34 @@ export class PaymentsService {
         method: params.method as any,
         reference: params.reference,
         gateway: params.gateway,
+        gatewayRef: params.gatewayRef,
         status: 'pending',
       },
     });
+  }
+
+  async completePendingPayment(reference: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { reference },
+      include: { invoice: true },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.status !== 'pending') return payment;
+
+    const updated = await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: 'completed', paidAt: new Date() },
+    });
+
+    const invoice = payment.invoice;
+    const newAmountPaid = Number(invoice.amountPaid) + Number(payment.amount);
+    const newStatus = newAmountPaid >= Number(invoice.total) ? 'paid' : 'partially_paid';
+    await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { amountPaid: newAmountPaid, status: newStatus, paidDate: newStatus === 'paid' ? new Date() : undefined },
+    });
+
+    return updated;
   }
 
   async getPaymentByReference(reference: string) {

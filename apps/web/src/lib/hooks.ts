@@ -665,6 +665,13 @@ export function useInitHubtel() {
   });
 }
 
+export function useInitTheTeller() {
+  return useMutation({
+    mutationFn: (data: { invoiceId: string; email: string; amount: number; description?: string }) =>
+      api.post('/payments/initialize/theteller', data),
+  });
+}
+
 export function useVerifyPayment(reference: string) {
   return useQuery({
     queryKey: ['payment-verify', reference],

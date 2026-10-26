@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaystackService } from './gateways/paystack.service';
 import { HubtelService } from './gateways/hubtel.service';
+import { TheTellerService } from './gateways/theteller.service';
 import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Payments')
@@ -16,6 +17,7 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly paystackService: PaystackService,
     private readonly hubtelService: HubtelService,
+    private readonly theTellerService: TheTellerService,
     private readonly config: ConfigService,
   ) {}
 
@@ -103,11 +105,12 @@ export class PaymentsController {
   @Get('payments/gateways')
   @ApiOperation({ summary: 'Get available payment gateways' })
   async getAvailableGateways() {
-    const [paystack, hubtel] = await Promise.all([
+    const [paystack, hubtel, theteller] = await Promise.all([
       this.paystackService.isConfigured(),
       this.hubtelService.isConfigured(),
+      this.theTellerService.isConfigured(),
     ]);
-    return { paystack, hubtel };
+    return { paystack, hubtel, theteller };
   }
 
   @Post('payments/initialize/paystack')
@@ -172,9 +175,53 @@ export class PaymentsController {
     return result;
   }
 
+  @Post('payments/initialize/theteller')
+  @ApiOperation({ summary: 'Initialize theTeller (PaySwitch) payment' })
+  async initTheTeller(
+    @Body() body: { invoiceId: string; email: string; amount: number; description?: string; callbackUrl?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    const transactionId = this.theTellerService.generateTransactionId();
+    const reference = `TTR-${Date.now().toString(36).toUpperCase()}-${userId.slice(0, 8)}`;
+    const frontendUrl = this.config.get('FRONTEND_URL', 'https://devcrats-api.vercel.app');
+
+    await this.paymentsService.createPendingPayment({
+      invoiceId: body.invoiceId,
+      amount: body.amount,
+      method: 'card',
+      reference,
+      gateway: 'theteller',
+      gatewayRef: transactionId,
+    });
+
+    const result = await this.theTellerService.initializePayment({
+      amount: body.amount,
+      description: body.description || 'EstateIQ Payment',
+      transactionId,
+      email: body.email,
+      redirectUrl: body.callbackUrl || `${frontendUrl}/dashboard/payments?ref=${reference}`,
+    });
+
+    return result;
+  }
+
   @Get('payments/verify/:reference')
   @ApiOperation({ summary: 'Verify payment status by reference' })
   async verifyPayment(@Param('reference') reference: string) {
-    return this.paymentsService.getPaymentByReference(reference);
+    const payment: any = await this.paymentsService.getPaymentByReference(reference);
+
+    // theTeller standard checkout has no server callback — check status on return
+    if (payment.status === 'pending' && payment.gateway === 'theteller' && payment.gatewayRef) {
+      try {
+        const status = await this.theTellerService.checkPaymentStatus(payment.gatewayRef);
+        if (status?.code === '000' && ['approved', 'successful'].includes(status?.status)) {
+          return this.paymentsService.completePendingPayment(reference);
+        }
+      } catch (e) {
+        // fall through and return the pending payment record
+      }
+    }
+
+    return payment;
   }
 }

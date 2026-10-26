@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { usePayments, useRecordPayment, useInvoices, useAvailableGateways, useInitPaystack, useInitHubtel, useVerifyPayment, useMyTenantProfile, useMyLandlordProfile, useTenants } from '@/lib/hooks';
+import { usePayments, useRecordPayment, useInvoices, useAvailableGateways, useInitPaystack, useInitHubtel, useInitTheTeller, useVerifyPayment, useMyTenantProfile, useMyLandlordProfile, useTenants } from '@/lib/hooks';
 import { useAuthStore } from '@/store/auth-store';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -80,8 +80,9 @@ export default function PaymentsPage() {
   const { data: tenantsData } = useTenants(user?.estateId || undefined);
   const initPaystack = useInitPaystack();
   const initHubtel = useInitHubtel();
+  const initTheTeller = useInitTheTeller();
 
-  const gateways = { paystack: !!gatewaysData?.data?.paystack, hubtel: !!gatewaysData?.data?.hubtel };
+  const gateways = { paystack: !!gatewaysData?.data?.paystack, hubtel: !!gatewaysData?.data?.hubtel, theteller: !!gatewaysData?.data?.theteller };
   const tenantList: any[] = tenantsData?.data || [];
   const selectedTenant = tenantList.find((t: any) => t.id === form.selectedTenantId);
 
@@ -230,6 +231,18 @@ export default function PaymentsPage() {
           customerPhone: form.momoPhone,
         });
         const url = res?.data?.CheckoutUrl || res?.data?.CheckoutDirectUrl;
+        if (!url) throw new Error('No checkout URL returned');
+        window.location.href = url;
+        return;
+      }
+      if (form.method === 'theteller') {
+        const res: any = await initTheTeller.mutateAsync({
+          invoiceId: form.invoiceId,
+          email: user?.email || '',
+          amount: form.amount,
+          description: form.description || `${form.type} payment`,
+        });
+        const url = res?.data?.checkout_url;
         if (!url) throw new Error('No checkout URL returned');
         window.location.href = url;
         return;
@@ -477,6 +490,7 @@ export default function PaymentsPage() {
                 {[
                   ...(gateways.hubtel ? [{ id: 'mobile_money', label: 'Mobile Money', desc: 'MTN, Vodafone, AirtelTigo', icon: Smartphone, color: 'text-yellow-600 bg-yellow-50' }] : []),
                   ...(gateways.paystack ? [{ id: 'card', label: 'Debit/Credit Card', desc: 'Visa, Mastercard', icon: CreditCard, color: 'text-blue-600 bg-blue-50' }] : []),
+                  ...(gateways.theteller ? [{ id: 'theteller', label: 'TheTeller', desc: 'Card & MoMo via PaySwitch', icon: Shield, color: 'text-indigo-600 bg-indigo-50' }] : []),
                   { id: 'bank_transfer', label: 'Bank Transfer', desc: 'Direct bank deposit', icon: Building2, color: 'text-green-600 bg-green-50' },
                   ...( isAdmin ? [{ id: 'cash', label: 'Cash', desc: 'Record cash payment', icon: Banknote, color: 'text-purple-600 bg-purple-50' }] : []),
                 ].map((m) => (
@@ -548,6 +562,17 @@ export default function PaymentsPage() {
                       <Shield className="h-3.5 w-3.5 text-green-600" />
                       <span className="text-xs text-green-700 font-medium">PCI-DSS Compliant · 256-bit SSL Encryption</span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* theTeller fields */}
+              {form.method === 'theteller' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center">
+                    <Shield className="h-8 w-8 mx-auto text-indigo-600 mb-2" />
+                    <p className="font-semibold text-sm">TheTeller Checkout</p>
+                    <p className="text-xs text-muted-foreground mt-1">You&apos;ll be redirected to PaySwitch&apos;s secure checkout — pay by card or mobile money.</p>
                   </div>
                 </div>
               )}
@@ -633,6 +658,11 @@ export default function PaymentsPage() {
                   <p>You will be redirected to a secure Paystack checkout to enter your card details.</p>
                 </div>
               )}
+              {form.method === 'theteller' && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-800">
+                  <p>You will be redirected to PaySwitch&apos;s secure TheTeller checkout to complete your payment.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -644,7 +674,7 @@ export default function PaymentsPage() {
                 <p className="font-semibold">Processing your payment...</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {form.method === 'mobile_money' ? 'Waiting for MoMo approval on your phone...' :
-                   form.method === 'card' ? 'Connecting to secure checkout...' :
+                   form.method === 'card' || form.method === 'theteller' ? 'Connecting to secure checkout...' :
                    'Recording payment...'}
                 </p>
               </div>
