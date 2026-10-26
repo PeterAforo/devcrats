@@ -91,7 +91,10 @@ export class ReceiptsService {
         orderBy: { createdAt: 'desc' },
         include: {
           payment: {
-            select: { amount: true, method: true, paidAt: true },
+            include: {
+              invoice: { include: { unit: { select: { id: true, unitNumber: true, houseNumber: true } } } },
+              tenant: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+            },
           },
         },
       }),

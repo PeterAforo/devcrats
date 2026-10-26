@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Receipt, Search, Plus, Printer, Eye, Download } from 'lucide-react';
-import { useReceipts, useCreateReceipt } from '@/lib/hooks';
+import { useReceipts, useCreateReceipt, usePayments, useMyLandlordProfile } from '@/lib/hooks';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 
@@ -23,6 +23,8 @@ interface ReceiptItem {
   description: string;
   date: string;
   period: string;
+  tenantUserId?: string;
+  unitId?: string;
 }
 
 // Receipts correspond 1:1 with completed payments — only completed payments generate receipts
@@ -63,9 +65,12 @@ export default function ReceiptsPage() {
 
   const { data: apiData } = useReceipts(1, search || undefined);
   const createReceipt = useCreateReceipt();
+  const { data: paymentsData } = usePayments();
+  const { data: myLandlord } = useMyLandlordProfile(isLandlord);
+  const completedPayments: any[] = (paymentsData?.data || []).filter((p: any) => p.status === 'completed');
 
-  const apiReceipts: ReceiptItem[] = apiData?.data?.data
-    ? apiData.data.data.map((r: any) => ({
+  const apiReceipts: ReceiptItem[] = apiData?.data
+    ? apiData.data.map((r: any) => ({
         id: r.id,
         number: r.number,
         receivedFrom: r.receivedFrom || '—',
@@ -76,6 +81,8 @@ export default function ReceiptsPage() {
         description: r.description || r.payment?.type?.replace('_', ' ') || '—',
         date: new Date(r.createdAt).toISOString().split('T')[0],
         period: r.paymentPeriod || '—',
+        tenantUserId: r.payment?.tenant?.user?.id,
+        unitId: r.payment?.invoice?.unit?.id,
       }))
     : [];
 
@@ -84,14 +91,15 @@ export default function ReceiptsPage() {
     const source = apiReceipts.length > 0 ? apiReceipts : allMockReceipts;
 
     if (isTenant) {
-      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_NAME;
-      return source.filter((r) => r.receivedFrom.toLowerCase().includes(tenantName.toLowerCase()));
+      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim().toLowerCase();
+      return source.filter((r) => r.tenantUserId ? r.tenantUserId === user?.id : r.receivedFrom.toLowerCase().includes(tenantName));
     }
     if (isLandlord) {
-      return source.filter((r) => DEMO_LANDLORD_UNITS.includes(r.houseNumber));
+      const myUnits = new Set((myLandlord?.data?.properties || []).map((p: any) => p.unit?.id));
+      return source.filter((r) => r.unitId ? myUnits.has(r.unitId) : DEMO_LANDLORD_UNITS.includes(r.houseNumber));
     }
     return source;
-  }, [apiReceipts, isTenant, isLandlord, user]);
+  }, [apiReceipts, isTenant, isLandlord, user, myLandlord]);
 
   const filtered = receipts.filter((r) =>
     r.receivedFrom.toLowerCase().includes(search.toLowerCase()) ||
@@ -324,7 +332,23 @@ export default function ReceiptsPage() {
                 <div><Label>Payment Period</Label><Input value={form.paymentPeriod} onChange={(e) => setForm({ ...form, paymentPeriod: e.target.value })} placeholder="e.g. January 2026" /></div>
                 <div><Label>Balance Due (GH₵)</Label><Input type="number" value={form.balanceDue} onChange={(e) => setForm({ ...form, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
               </div>
-              <div><Label>Payment ID (from system)</Label><Input value={form.paymentId} onChange={(e) => setForm({ ...form, paymentId: e.target.value })} placeholder="Payment UUID" /></div>
+              <div className="col-span-2"><Label>Payment *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.paymentId} onChange={(e) => {
+                  const p = completedPayments.find((x: any) => x.id === e.target.value);
+                  setForm({ ...form, paymentId: e.target.value,
+                    receivedFrom: p?.tenant?.user ? `${p.tenant.user.firstName} ${p.tenant.user.lastName}` : form.receivedFrom,
+                    houseNumber: p?.invoice?.unit?.houseNumber || p?.invoice?.unit?.unitNumber || form.houseNumber,
+                    cluster: p?.invoice?.unit?.building?.name || form.cluster,
+                  });
+                }}>
+                  <option value="">Select a completed payment...</option>
+                  {completedPayments.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.tenant?.user ? `${p.tenant.user.firstName} ${p.tenant.user.lastName}` : 'Unknown'} — GH₵ {Number(p.amount).toLocaleString()} — {p.reference || p.invoice?.invoiceNumber || p.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Button onClick={handleCreate} disabled={!form.receivedFrom || !form.houseNumber} className="gap-2">
                 <Receipt className="h-4 w-4" /> Generate Receipt
               </Button>
