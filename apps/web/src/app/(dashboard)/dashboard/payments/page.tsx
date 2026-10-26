@@ -10,13 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { usePayments, useRecordPayment } from '@/lib/hooks';
+import { usePayments, useRecordPayment, useInvoices, useAvailableGateways, useInitPaystack, useInitHubtel, useVerifyPayment, useMyTenantProfile, useMyLandlordProfile, useTenants } from '@/lib/hooks';
 import { useAuthStore } from '@/store/auth-store';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface Payment {
   id: string;
   tenant: string;
   unit: string;
+  unitId?: string;
   type: string;
   amount: number;
   method: string;
@@ -34,25 +37,7 @@ const initialPayments: Payment[] = [
   { id: 'PAY-007', tenant: 'Nana Agyemang', unit: 'B-301', type: 'Utility', amount: 320, method: 'Mobile Money', date: '2026-06-12', status: 'completed' },
 ];
 
-// Demo context for tenant auto-fill
-const DEMO_TENANT_CTX = { name: 'Kwame Asante', unit: 'A-101', estate: 'East Legon Hills Estate', rentAmount: 3500, emfAmount: 850 };
-// Demo context for landlord auto-fill (multiple units)
-const DEMO_LANDLORD_UNITS = [
-  { id: 'U1', unitNumber: '00AC12', building: 'Block A - Bellavilla', tenant: 'Kwame Asante', rentAmount: 3500 },
-  { id: 'U3', unitNumber: '00CE08', building: 'Block C - Rosavilla', tenant: 'Efua Mensah', rentAmount: 2800 },
-];
-// Demo tenants for admin/manager selection
-const DEMO_TENANTS_LIST = [
-  { id: 'T1', name: 'Kwame Asante', unit: 'A-101', estate: 'East Legon Hills', rentAmount: 3500, emfAmount: 850 },
-  { id: 'T2', name: 'Ama Mensah', unit: 'A-203', estate: 'East Legon Hills', rentAmount: 4200, emfAmount: 850 },
-  { id: 'T3', name: 'Kofi Boateng', unit: 'B-102', estate: 'Cantonments Res.', rentAmount: 4200, emfAmount: 850 },
-  { id: 'T4', name: 'Yaw Darko', unit: 'B-201', estate: 'Kumasi Royal Gardens', rentAmount: 2500, emfAmount: 600 },
-  { id: 'T5', name: 'Abena Owusu', unit: 'A-301', estate: 'Airport Res. Towers', rentAmount: 5800, emfAmount: 1200 },
-];
-
 type PayStep = 'what' | 'how' | 'confirm' | 'processing' | 'success';
-
-const TYPE_AMOUNTS: Record<string, number> = { Rent: 3500, EMF: 850, Utility: 320, Deposit: 3500 };
 
 function detectMomoNetwork(phone: string): string {
   const cleaned = phone.replace(/\D/g, '');
@@ -80,52 +65,73 @@ export default function PaymentsPage() {
   // Multi-step form state
   const [step, setStep] = useState<PayStep>('what');
   const [form, setForm] = useState({
-    tenantName: '', unit: '', unitId: '', type: 'Rent', amount: 0, description: '',
+    tenantName: '', unit: '', unitId: '', invoiceId: '', type: 'Payment', amount: 0, maxAmount: 0, description: '',
     method: '', momoNetwork: '', momoPhone: '', bankReference: '', cashReference: '',
     selectedTenantId: '',
   });
 
-  // Auto-fill on dialog open based on role
+  const qc = useQueryClient();
+  const { data: apiData } = usePayments();
+  const recordPayment = useRecordPayment();
+  const { data: invoicesData } = useInvoices(user?.estateId || undefined);
+  const { data: gatewaysData } = useAvailableGateways();
+  const { data: myTenant } = useMyTenantProfile(isTenant);
+  const { data: myLandlord } = useMyLandlordProfile(isLandlord);
+  const { data: tenantsData } = useTenants(user?.estateId || undefined);
+  const initPaystack = useInitPaystack();
+  const initHubtel = useInitHubtel();
+
+  const gateways = { paystack: !!gatewaysData?.data?.paystack, hubtel: !!gatewaysData?.data?.hubtel };
+  const tenantList: any[] = tenantsData?.data || [];
+  const selectedTenant = tenantList.find((t: any) => t.id === form.selectedTenantId);
+
+  // Unit ids the payer can pay for
+  const myUnitIds: string[] = isTenant
+    ? (myTenant?.data?.leases || []).map((l: any) => l.unit?.id).filter(Boolean)
+    : isLandlord
+      ? (myLandlord?.data?.properties || []).map((p: any) => p.unit?.id).filter(Boolean)
+      : [];
+
+  const outstanding: any[] = (invoicesData?.data || []).filter((i: any) =>
+    ['sent', 'partially_paid', 'overdue'].includes(i.status) && Number(i.total) > Number(i.amountPaid || 0)
+  );
+  const scopedInvoices = isAdmin
+    ? (form.selectedTenantId ? outstanding.filter((i: any) => i.unitId === selectedTenant?.leases?.[0]?.unit?.id) : [])
+    : outstanding.filter((i: any) => myUnitIds.includes(i.unitId));
+
+  const landlordTenantName = (unitId: string) => {
+    const l = (myLandlord?.data?.leases || []).find((l: any) => l.unit?.id === unitId);
+    return l?.tenant?.user ? `${l.tenant.user.firstName} ${l.tenant.user.lastName}` : '';
+  };
+
+  const handleInvoiceSelect = (invoiceId: string) => {
+    const inv = outstanding.find((i: any) => i.id === invoiceId);
+    if (!inv) return;
+    const remaining = Number(inv.total) - Number(inv.amountPaid || 0);
+    setForm((f) => ({
+      ...f,
+      invoiceId,
+      type: inv.type || 'Payment',
+      amount: remaining,
+      maxAmount: remaining,
+      unit: inv.unit?.unitNumber || inv.unit?.houseNumber || '',
+      unitId: inv.unitId,
+      tenantName: isAdmin && selectedTenant?.user
+        ? `${selectedTenant.user.firstName} ${selectedTenant.user.lastName}`
+        : isLandlord ? landlordTenantName(inv.unitId) : `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+    }));
+  };
+
+  // Reset form on dialog open
   useEffect(() => {
     if (!showAdd) return;
     setStep('what');
-
-    if (isTenant) {
-      // Tenant: auto-fill name + unit, suggest rent amount
-      setForm((f) => ({
-        ...f,
-        tenantName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_CTX.name,
-        unit: DEMO_TENANT_CTX.unit,
-        amount: DEMO_TENANT_CTX.rentAmount,
-        momoPhone: '',
-        method: '',
-        bankReference: '',
-        cashReference: '',
-        selectedTenantId: '',
-      }));
-    } else if (isLandlord) {
-      // Landlord: auto-fill name, let them pick unit if multiple
-      setForm((f) => ({
-        ...f,
-        tenantName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
-        unit: DEMO_LANDLORD_UNITS.length === 1 ? DEMO_LANDLORD_UNITS[0].unitNumber : '',
-        unitId: DEMO_LANDLORD_UNITS.length === 1 ? DEMO_LANDLORD_UNITS[0].id : '',
-        amount: DEMO_LANDLORD_UNITS.length === 1 ? DEMO_LANDLORD_UNITS[0].rentAmount : 0,
-        momoPhone: '',
-        method: '',
-        bankReference: '',
-        cashReference: '',
-        selectedTenantId: '',
-      }));
-    } else {
-      // Admin/Manager: blank — they pick tenant
-      setForm({
-        tenantName: '', unit: '', unitId: '', type: 'Rent', amount: 0, description: '',
-        method: '', momoNetwork: '', momoPhone: '', bankReference: '', cashReference: '',
-        selectedTenantId: '',
-      });
-    }
-  }, [showAdd, isTenant, isLandlord, user]);
+    setForm({
+      tenantName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+      unit: '', unitId: '', invoiceId: '', type: 'Payment', amount: 0, maxAmount: 0, description: '',
+      method: '', momoNetwork: '', momoPhone: '', bankReference: '', cashReference: '', selectedTenantId: '',
+    });
+  }, [showAdd, user]);
 
   // Auto-detect MoMo network from phone number
   useEffect(() => {
@@ -135,48 +141,33 @@ export default function PaymentsPage() {
     }
   }, [form.momoPhone]);
 
-  // Auto-fill amount when type changes
-  const handleTypeChange = (type: string) => {
-    let amount = TYPE_AMOUNTS[type] || 0;
-    if (isTenant) {
-      amount = type === 'EMF' ? DEMO_TENANT_CTX.emfAmount : type === 'Rent' ? DEMO_TENANT_CTX.rentAmount : 0;
-    } else if (form.selectedTenantId && isAdmin) {
-      const t = DEMO_TENANTS_LIST.find((t) => t.id === form.selectedTenantId);
-      if (t) amount = type === 'EMF' ? t.emfAmount : type === 'Rent' ? t.rentAmount : 0;
-    }
-    setForm((f) => ({ ...f, type, amount }));
-  };
+  // Handle gateway return (?ref= / ?cancelled=)
+  const [verifyRef, setVerifyRef] = useState('');
+  const { data: verifyData } = useVerifyPayment(verifyRef);
 
-  // Admin: select tenant → auto-fill unit + amount
-  const handleTenantSelect = (tenantId: string) => {
-    const t = DEMO_TENANTS_LIST.find((t) => t.id === tenantId);
-    if (t) {
-      setForm((f) => ({
-        ...f,
-        selectedTenantId: tenantId,
-        tenantName: t.name,
-        unit: t.unit,
-        amount: f.type === 'EMF' ? t.emfAmount : t.rentAmount,
-      }));
-    }
-  };
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('cancelled')) toast.error('Payment was cancelled');
+    const ref = params.get('ref');
+    if (ref) setVerifyRef(ref);
+    if (ref || params.get('cancelled')) window.history.replaceState({}, '', window.location.pathname);
+  }, []);
 
-  // Landlord: select unit → auto-fill tenant + amount
-  const handleLandlordUnitSelect = (unitId: string) => {
-    const u = DEMO_LANDLORD_UNITS.find((u) => u.id === unitId);
-    if (u) {
-      setForm((f) => ({ ...f, unitId, unit: u.unitNumber, tenantName: u.tenant || '', amount: u.rentAmount }));
-    }
-  };
-
-  const { data: apiData } = usePayments();
-  const recordPayment = useRecordPayment();
+  useEffect(() => {
+    const p = verifyData?.data;
+    if (!p) return;
+    if (p.status === 'completed') toast.success(`Payment ${p.reference} confirmed`);
+    else toast.info(`Payment ${p.reference} is ${p.status} — awaiting gateway confirmation`);
+    qc.invalidateQueries({ queryKey: ['payments'] });
+    qc.invalidateQueries({ queryKey: ['invoices'] });
+  }, [verifyData]);
 
   const allPayments: Payment[] = apiData?.data
     ? apiData.data.map((p: any) => ({
         id: p.id,
-        tenant: p.invoice?.tenant?.user ? `${p.invoice.tenant.user.firstName} ${p.invoice.tenant.user.lastName}` : 'Unknown',
+        tenant: p.tenant?.user ? `${p.tenant.user.firstName} ${p.tenant.user.lastName}` : 'Unknown',
         unit: p.invoice?.unit?.unitNumber || '—',
+        unitId: p.invoice?.unit?.id,
         type: p.invoice?.type || 'Payment',
         amount: p.amount,
         method: p.method || 'Mobile Money',
@@ -187,16 +178,11 @@ export default function PaymentsPage() {
 
   // Role-based payment filtering
   const payments = useMemo(() => {
-    if (isTenant) {
-      const tenantName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || DEMO_TENANT_CTX.name;
-      return allPayments.filter((p) => p.tenant.toLowerCase().includes(tenantName.toLowerCase()));
-    }
-    if (isLandlord) {
-      const landlordUnits = DEMO_LANDLORD_UNITS.map((u) => u.unitNumber);
-      return allPayments.filter((p) => landlordUnits.includes(p.unit));
+    if (isTenant || isLandlord) {
+      return allPayments.filter((p) => p.unitId && myUnitIds.includes(p.unitId));
     }
     return allPayments;
-  }, [allPayments, isTenant, isLandlord, user]);
+  }, [allPayments, isTenant, isLandlord, myUnitIds]);
 
   const filtered = payments.filter((p) =>
     p.tenant.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase())
@@ -220,42 +206,49 @@ export default function PaymentsPage() {
 
   const networkLabel = (n: string) => n === 'mtn' ? 'MTN MoMo' : n === 'vodafone' ? 'Vodafone Cash' : n === 'airteltigo' ? 'AirtelTigo Money' : n;
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     setStep('processing');
-    // Simulate payment processing
-    setTimeout(() => {
-      const today = new Date().toISOString().split('T')[0];
-      const payId = `PAY-${String(payments.length + 1).padStart(3, '0')}`;
-      const newPayment: Payment = {
-        id: payId,
-        tenant: form.tenantName,
-        unit: form.unit,
-        type: form.type,
+    try {
+      if (form.method === 'card') {
+        const res: any = await initPaystack.mutateAsync({
+          invoiceId: form.invoiceId,
+          email: user?.email || '',
+          amount: form.amount,
+        });
+        const url = res?.data?.authorization_url;
+        if (!url) throw new Error('No checkout URL returned');
+        window.location.href = url;
+        return;
+      }
+      if (form.method === 'mobile_money') {
+        const res: any = await initHubtel.mutateAsync({
+          invoiceId: form.invoiceId,
+          amount: form.amount,
+          description: form.description || `${form.type} payment`,
+          customerName: form.tenantName,
+          customerEmail: user?.email,
+          customerPhone: form.momoPhone,
+        });
+        const url = res?.data?.CheckoutUrl || res?.data?.CheckoutDirectUrl;
+        if (!url) throw new Error('No checkout URL returned');
+        window.location.href = url;
+        return;
+      }
+      const res: any = await recordPayment.mutateAsync({
+        invoiceId: form.invoiceId,
         amount: form.amount,
-        method: methodLabel(form.method),
-        date: today,
-        status: 'completed',
-      };
-      recordPayment.mutate(
-        { invoiceId: '', amount: form.amount, method: form.method },
-        { onError: () => setLocalPayments([newPayment, ...localPayments]) },
-      );
-      setLocalPayments([newPayment, ...localPayments]);
-
-      // Generate receipt number: DDMMYY-SEQ-UNIT
-      const d = new Date();
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const yy = String(d.getFullYear()).slice(-2);
-      const unitClean = form.unit.replace(/[^a-zA-Z0-9]/g, '');
-      const receiptNo = `${dd}${mm}${yy}-${payments.length + 1}-00${unitClean}`;
-      setLastReceiptNumber(receiptNo);
-
+        method: form.method,
+        reference: form.bankReference || form.cashReference || undefined,
+      });
+      setLastReceiptNumber(res?.data?.reference || '');
       setStep('success');
-    }, 2500);
+    } catch (e: any) {
+      toast.error(e.message || 'Payment failed');
+      setStep('confirm');
+    }
   };
 
-  const canProceedStep1 = form.tenantName && form.unit && form.amount > 0;
+  const canProceedStep1 = !!form.invoiceId && form.amount > 0;
   const canProceedStep2 = form.method && (
     form.method !== 'mobile_money' || (form.momoPhone.replace(/\D/g, '').length >= 10 && form.momoNetwork)
   ) && (
@@ -386,39 +379,12 @@ export default function PaymentsPage() {
                 </div>
               )}
 
-              {/* Landlord role: auto-filled name, pick unit */}
+              {/* Landlord role: auto-filled name */}
               {isLandlord && (
-                <>
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Paying as</p>
-                    <p className="font-semibold text-sm">{form.tenantName}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Select Unit</Label>
-                    <div className="grid grid-cols-1 gap-2">
-                      {DEMO_LANDLORD_UNITS.map((u) => (
-                        <div
-                          key={u.id}
-                          onClick={() => handleLandlordUnitSelect(u.id)}
-                          className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                            form.unitId === u.id ? 'border-gold bg-gold/5' : 'border-border hover:border-gold/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-sm">House {u.unitNumber}</p>
-                              <p className="text-xs text-muted-foreground">{u.building}</p>
-                            </div>
-                            <div className="text-right">
-                              {u.tenant && <p className="text-xs text-muted-foreground">Tenant: {u.tenant}</p>}
-                              <p className="text-sm font-semibold">GH₵ {u.rentAmount.toLocaleString()}/mo</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Paying as</p>
+                  <p className="font-semibold text-sm">{form.tenantName}</p>
+                </div>
               )}
 
               {/* Admin/Manager role: select tenant from dropdown */}
@@ -428,48 +394,66 @@ export default function PaymentsPage() {
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.selectedTenantId}
-                    onChange={(e) => handleTenantSelect(e.target.value)}
+                    onChange={(e) => setForm({ ...form, selectedTenantId: e.target.value, invoiceId: '', amount: 0, maxAmount: 0 })}
                   >
                     <option value="">Choose a tenant...</option>
-                    {DEMO_TENANTS_LIST.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} — Unit {t.unit} ({t.estate})</option>
+                    {tenantList.map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        {t.user?.firstName} {t.user?.lastName}{t.leases?.[0]?.unit?.unitNumber ? ` — ${t.leases[0].unit.unitNumber}` : ''}
+                      </option>
                     ))}
                   </select>
-                  {form.selectedTenantId && (
-                    <div className="bg-muted/50 rounded-lg p-3 mt-2">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><p className="text-muted-foreground">Tenant</p><p className="font-semibold">{form.tenantName}</p></div>
-                        <div><p className="text-muted-foreground">Unit</p><p className="font-semibold">{form.unit}</p></div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
+
+              {/* Invoice picker */}
+              <div className="space-y-2">
+                <Label>Outstanding Invoice</Label>
+                {scopedInvoices.length === 0 ? (
+                  <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+                    {isAdmin && !form.selectedTenantId ? 'Select a tenant to see their outstanding invoices.' : 'No outstanding invoices.'}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {scopedInvoices.map((inv: any) => {
+                      const remaining = Number(inv.total) - Number(inv.amountPaid || 0);
+                      return (
+                        <div
+                          key={inv.id}
+                          onClick={() => handleInvoiceSelect(inv.id)}
+                          className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                            form.invoiceId === inv.id ? 'border-gold bg-gold/5' : 'border-border hover:border-gold/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-sm">{inv.invoiceNumber} — {inv.type}</p>
+                              <p className="text-xs text-muted-foreground">Unit {inv.unit?.unitNumber || '—'}{inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ''}</p>
+                            </div>
+                            <p className="text-sm font-semibold">GH₵ {remaining.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               <Separator />
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Payment Type</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={form.type}
-                    onChange={(e) => handleTypeChange(e.target.value)}
-                  >
-                    <option value="Rent">Rent</option>
-                    <option value="EMF">EMF (Estate Maintenance Fee)</option>
-                    <option value="Utility">Utility Bill</option>
-                    <option value="Deposit">Security Deposit</option>
-                  </select>
+                  <Input value={form.type} disabled className="opacity-60" />
                 </div>
                 <div className="space-y-2">
                   <Label>Amount (GH₵)</Label>
                   <Input
                     type="number" min={0} value={form.amount || ''}
-                    onChange={(e) => setForm({ ...form, amount: +e.target.value })}
+                    onChange={(e) => setForm({ ...form, amount: Math.min(+e.target.value, form.maxAmount || +e.target.value) })}
                     placeholder="0.00"
                   />
-                  {form.amount > 0 && <p className="text-xs text-muted-foreground">GH₵ {form.amount.toLocaleString()}</p>}
+                  {form.maxAmount > 0 && <p className="text-xs text-muted-foreground">Balance due: GH₵ {form.maxAmount.toLocaleString()}</p>}
                 </div>
               </div>
 
@@ -491,8 +475,8 @@ export default function PaymentsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { id: 'mobile_money', label: 'Mobile Money', desc: 'MTN, Vodafone, AirtelTigo', icon: Smartphone, color: 'text-yellow-600 bg-yellow-50' },
-                  { id: 'card', label: 'Debit/Credit Card', desc: 'Visa, Mastercard', icon: CreditCard, color: 'text-blue-600 bg-blue-50' },
+                  ...(gateways.hubtel ? [{ id: 'mobile_money', label: 'Mobile Money', desc: 'MTN, Vodafone, AirtelTigo', icon: Smartphone, color: 'text-yellow-600 bg-yellow-50' }] : []),
+                  ...(gateways.paystack ? [{ id: 'card', label: 'Debit/Credit Card', desc: 'Visa, Mastercard', icon: CreditCard, color: 'text-blue-600 bg-blue-50' }] : []),
                   { id: 'bank_transfer', label: 'Bank Transfer', desc: 'Direct bank deposit', icon: Building2, color: 'text-green-600 bg-green-50' },
                   ...( isAdmin ? [{ id: 'cash', label: 'Cash', desc: 'Record cash payment', icon: Banknote, color: 'text-purple-600 bg-purple-50' }] : []),
                 ].map((m) => (

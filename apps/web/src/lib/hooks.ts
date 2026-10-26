@@ -415,10 +415,11 @@ export function useDeleteDocument() {
 }
 
 // ─── TENANT PROFILE (MY UNIT) ───────────────────────────
-export function useMyTenantProfile() {
+export function useMyTenantProfile(enabled = true) {
   return useQuery({
     queryKey: ['my-tenant-profile'],
     queryFn: () => api.get('/tenants/me'),
+    enabled,
   });
 }
 
@@ -479,10 +480,11 @@ export function useReviewChangeRequest() {
 }
 
 // ─── LANDLORD PROFILE ──────────────────────────────────
-export function useMyLandlordProfile() {
+export function useMyLandlordProfile(enabled = true) {
   return useQuery({
     queryKey: ['my-landlord-profile'],
     queryFn: () => api.get('/landlords/me'),
+    enabled,
   });
 }
 
