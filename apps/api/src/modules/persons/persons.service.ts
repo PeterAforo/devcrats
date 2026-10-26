@@ -363,7 +363,7 @@ export class PersonsService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, isActive: true, avatarUrl: true, idType: true, idNumber: true } },
-          properties: { where: { isActive: true }, include: { unit: { include: { building: true } } } },
+          properties: { where: { isActive: true }, include: { unit: { include: { building: { include: { estate: true } } } } } },
           leases: { where: { status: 'active' }, select: { id: true } },
           _count: { select: { leases: true, properties: true } },
         },

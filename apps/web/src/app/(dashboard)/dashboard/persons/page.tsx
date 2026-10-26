@@ -84,12 +84,15 @@ export default function PersonsPage() {
     ? apiTenants.data.map((t: any) => ({
         id: t.id, name: `${t.user?.firstName || ''} ${t.user?.lastName || ''}`.trim(),
         email: t.user?.email || '', phone: t.user?.phone || '',
-        unit: t.unit?.unitNumber || '', estate: t.estate?.name || '',
+        unit: t.leases?.[0]?.unit?.unitNumber || t.leases?.[0]?.unit?.houseNumber || '',
+        estate: t.leases?.[0]?.unit?.building?.estate?.name || '',
         status: t.user?.isActive ? 'active' : 'inactive',
-        leaseStart: t.leases?.[0]?.startDate || '', leaseEnd: t.leases?.[0]?.endDate || '',
-        landlordId: t.landlord?.id || '', landlordName: t.landlord?.user ? `${t.landlord.user.firstName} ${t.landlord.user.lastName}` : '',
-        tenantType: (t.tenantType || 'single') as TenantType, nationality: t.nationality || 'Ghanaian',
-        occupants: t.occupants, companyName: t.companyName,
+        leaseStart: t.leases?.[0]?.startDate?.slice(0, 10) || '',
+        leaseEnd: t.leases?.[0]?.endDate?.slice(0, 10) || '',
+        landlordId: t.leases?.[0]?.landlord?.id || t.landlordId || '',
+        landlordName: t.leases?.[0]?.landlord?.user ? `${t.leases[0].landlord.user.firstName} ${t.leases[0].landlord.user.lastName}` : '',
+        tenantType: (t.familyMembers?.length ? 'family' : 'single') as TenantType, nationality: t.nationality || 'Ghanaian',
+        occupants: t.familyMembers?.length ? t.familyMembers.length + 1 : 1, companyName: t.companyName,
         avatarUrl: t.user?.avatarUrl || undefined,
       }))
     : localTenants;
@@ -98,7 +101,7 @@ export default function PersonsPage() {
     ? apiLandlords.data.map((l: any) => ({
         id: l.id, name: `${l.user?.firstName || ''} ${l.user?.lastName || ''}`.trim(),
         email: l.user?.email || '', phone: l.user?.phone || '',
-        properties: l.units?.map((u: any) => u.building?.estate?.name || '').filter(Boolean) || [],
+        properties: l.properties?.map((p: any) => p.unit?.building?.estate?.name || p.unit?.building?.name || p.unit?.unitNumber).filter(Boolean) || [],
         bank: l.bankName || '', status: l.user?.isActive ? 'active' : 'inactive',
       }))
     : localLandlords;
