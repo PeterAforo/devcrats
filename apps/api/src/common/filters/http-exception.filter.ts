@@ -36,6 +36,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     } else {
       this.logger.error('Unhandled exception', exception);
+      // Temporarily surface the real error for production debugging
+      if (exception instanceof Error && exception.message) {
+        message = `Internal: ${exception.message}`;
+      }
     }
 
     response.status(status).json({
